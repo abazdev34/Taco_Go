@@ -2,7 +2,7 @@
 
 @media screen and (max-width: 1000px) {
 	#header {
-		background: url("../../assets/img/div.header_wrap.png");
+		background: rgb(228, 222, 188);
 
 		height: 80px;
 		.header {
@@ -93,7 +93,7 @@
 @media screen and (min-width: 1000px) {
 	#header {
 		transition: 0.1s ease-in;
-		background: url("../../assets/img/div.header_wrap.png");
+		background:rgb(234, 237, 197);
 		background-repeat: no-repeat;
 		background-size: cover;
 		width: 100%;
