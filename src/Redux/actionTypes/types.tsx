@@ -1,6 +1,15 @@
 /** @format */
 
 import { actionTypeKeys } from "./actionTypes"
+
+// ✅ IImage интерфейсин кошуу (CardModal үчүн керек)
+export interface IImage {
+	id: string
+	url: string
+	alt?: string
+	name?: string
+}
+
 export interface ITaco {
 	id: string
 	img: string
@@ -24,6 +33,7 @@ export interface IState {
 	showCart: boolean
 	cart: ITaco[]
 }
+
 interface IToggleBurgerMenu {
 	type: typeof actionTypeKeys.TOGGLE_BURGER_MENU
 }
@@ -36,10 +46,12 @@ export interface IAddToCart {
 	type: typeof actionTypeKeys.ADD_TO_CART
 	payload: ITaco
 }
+
 export interface IRemoveFromCart {
 	type: typeof actionTypeKeys.REMOVE_FROM_CART
 	payload: ITaco
 }
+
 export interface IUpdateCartItemPrice {
 	type: typeof actionTypeKeys.UPDATE_CART_ITEM_PRICE
 	payload: ITaco
@@ -50,13 +62,14 @@ interface IUpdateMealQuantity {
 	payload: string
 }
 
-
 interface IToggleModal {
 	type: typeof actionTypeKeys.TOGGLE_MODAL
 }
+
 interface IClearCart {
 	type: typeof actionTypeKeys.CLEAR_CART
 }
+
 export type IAction =
 	| IToggleBurgerMenu
 	| IToggleCart
@@ -66,4 +79,3 @@ export type IAction =
 	| IUpdateMealQuantity
 	| IToggleModal
 	| IClearCart
-  
