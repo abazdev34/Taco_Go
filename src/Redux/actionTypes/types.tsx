@@ -49,12 +49,7 @@ interface IUpdateMealQuantity {
 	type: typeof actionTypeKeys.UPDATE_MEAL_QUANTITY
 	payload: string
 }
-export interface IImage {
-  id: number;
-  url: string;
-  alt?: string;
-  name?: string;
-}
+
 
 interface IToggleModal {
 	type: typeof actionTypeKeys.TOGGLE_MODAL
@@ -71,4 +66,4 @@ export type IAction =
 	| IUpdateMealQuantity
 	| IToggleModal
 	| IClearCart
-  |IImage
+  
