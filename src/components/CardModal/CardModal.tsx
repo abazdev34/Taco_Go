@@ -3,10 +3,11 @@
 import { IoClose } from "react-icons/io5"
 import { useDispatch, useSelector } from "react-redux"
 import { actionTypeKeys } from "../../Redux/actionTypes/actionTypes"
-import { IImage, IState } from "../../Redux/actionTypes/types"
+import { ITaco, IState } from "../../Redux/actionTypes/types" // ✅ ITaco импорт кылуу
 import "./CardModal.scss"
+
 interface IProps {
-	taco: IImage
+	taco: ITaco  // ✅ IImage ордуна ITaco
 }
 
 export default function CardModal({ taco }: IProps) {
@@ -26,14 +27,14 @@ export default function CardModal({ taco }: IProps) {
 		})
 	}
 
-	const handleAddToCart = (e: IImage) => {
+	const handleAddToCart = (e: ITaco) => {  // ✅ ITaco типи
 		dispatch({
 			type: actionTypeKeys.ADD_TO_CART,
 			payload: e,
 		})
 	}
 
-	const handleRemoveFromCart = (e: IImage) => {
+	const handleRemoveFromCart = (e: ITaco) => {  // ✅ ITaco типи
 		dispatch({
 			type: actionTypeKeys.REMOVE_FROM_CART,
 			payload: e,
@@ -85,7 +86,6 @@ export default function CardModal({ taco }: IProps) {
 					</div>
 
 					<div className="product_change">
-
 						<button className={
 							getQuantity(taco.id) === 0 ? "minus" : "minus_hide"
 						}  
@@ -97,4 +97,7 @@ export default function CardModal({ taco }: IProps) {
 			</div>
 		</div>
 	)
-}
+
+
+
+}	
