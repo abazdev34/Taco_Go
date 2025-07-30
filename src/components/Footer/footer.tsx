@@ -1,7 +1,7 @@
 /** @format */
 
 import { NavLink } from "react-router-dom"
-import logo from "../../assets/img/Logo.svg"
+import logo from "../../assets/img/Takogo.jpg"
 import "./footer.scss"
 const Footer = () => {
 	return (
