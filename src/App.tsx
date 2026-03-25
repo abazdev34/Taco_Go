@@ -11,12 +11,13 @@ import Sales from "./Pages/Sales/Sales"
 import { OrderAddress } from "./Pages/OrderAddress/OrderAddress"
 import { OrderPage } from "./Pages/OrderPage/OrderPage"
 import Admin from "./admin/Admin"
+// Добавьте импорт вашего нового компонента Kitchen
+import Kitchen from "./components/Kitchen/Kitchen" 
 
 function App() {
 	return (
 		<>
 			<Header />
-			<h1></h1>
 			<Cart />
 			<Routes>
 				<Route path="/" element={<Home />} />
@@ -25,6 +26,9 @@ function App() {
 				<Route path="/address" element={<OrderAddress/>} />
 				<Route path="/order" element={<OrderPage/>} />
 				<Route path="/admin" element={<Admin/>} />
+				
+				{/* НОВЫЙ МАРШРУТ ДЛЯ ПЛАНШЕТА КУХНИ */}
+				<Route path="/kitchen" element={<Kitchen />} /> 
 			</Routes>
 			
 			<Footer />
