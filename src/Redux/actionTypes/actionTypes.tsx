@@ -1,3 +1,5 @@
+/** @format */
+
 export const actionTypeKeys: Record<string, string> = {
 	ADD_TO_CART: 'ADD_TO_CART',
 	REMOVE_FROM_CART: 'REMOVE_FROM_CART',
@@ -8,4 +10,7 @@ export const actionTypeKeys: Record<string, string> = {
 	TOGGLE_MODAL: 'TOGGLE_MODAL',
 	CLEAR_CART: 'CLEAR_CART',
 	GET_ORDERS: 'GET_ORDERS',
+	// Жаңы ключтор:
+	CREATE_ORDER: 'CREATE_ORDER',
+	UPDATE_ORDER_STATUS: 'UPDATE_ORDER_STATUS',
 }

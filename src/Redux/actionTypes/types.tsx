@@ -1,14 +1,5 @@
 /** @format */
-
 import { actionTypeKeys } from "./actionTypes"
-
-// ✅ IImage интерфейсин кошуу (CardModal үчүн керек)
-export interface IImage {
-	id: string
-	url: string
-	alt?: string
-	name?: string
-}
 
 export interface ITaco {
 	id: string
@@ -26,20 +17,23 @@ export interface ITacos {
 	tacoCategory: ITaco[]
 }
 
+// Заказдын структурасы (Ашкана үчүн)
+export interface IOrder {
+	id: string
+	items: ITaco[]
+	totalSum: number
+	personCount: number
+	status: 'pending' | 'cooking' | 'ready'
+	createdAt: string
+}
+
 export interface IState {
 	showModal: boolean
 	tacos: ITacos[]
 	toggleBurgerMenu: boolean
 	showCart: boolean
 	cart: ITaco[]
-}
-
-interface IToggleBurgerMenu {
-	type: typeof actionTypeKeys.TOGGLE_BURGER_MENU
-}
-
-interface IToggleCart {
-	type: typeof actionTypeKeys.TOGGLE_CART
+	orders: IOrder[] // Бардык заказдар тизмеси
 }
 
 export interface IAddToCart {
@@ -52,30 +46,30 @@ export interface IRemoveFromCart {
 	payload: ITaco
 }
 
-export interface IUpdateCartItemPrice {
-	type: typeof actionTypeKeys.UPDATE_CART_ITEM_PRICE
-	payload: ITaco
+interface ICreateOrder {
+	type: typeof actionTypeKeys.CREATE_ORDER
+	payload: IOrder
 }
 
-interface IUpdateMealQuantity {
-	type: typeof actionTypeKeys.UPDATE_MEAL_QUANTITY
-	payload: string
+interface IUpdateOrderStatus {
+	type: typeof actionTypeKeys.UPDATE_ORDER_STATUS
+	payload: { id: string; status: string }
 }
 
-interface IToggleModal {
-	type: typeof actionTypeKeys.TOGGLE_MODAL
-}
-
-interface IClearCart {
-	type: typeof actionTypeKeys.CLEAR_CART
-}
+interface IClearCart { type: typeof actionTypeKeys.CLEAR_CART }
+interface IToggleCart { type: typeof actionTypeKeys.TOGGLE_CART }
+interface IToggleModal { type: typeof actionTypeKeys.TOGGLE_MODAL }
+interface IToggleBurgerMenu { type: typeof actionTypeKeys.TOGGLE_BURGER_MENU }
 
 export type IAction =
-	| IToggleBurgerMenu
-	| IToggleCart
+
 	| IAddToCart
 	| IRemoveFromCart
-	| IUpdateCartItemPrice
-	| IUpdateMealQuantity
-	| IToggleModal
+	| ICreateOrder
+
+	| IUpdateOrderStatus
 	| IClearCart
+	| IToggleCart
+
+	| IToggleModal
+	| IToggleBurgerMenu
