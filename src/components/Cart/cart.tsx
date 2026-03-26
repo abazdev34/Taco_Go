@@ -1,51 +1,53 @@
 /** @format */
-import { useEffect, useState } from "react"
-import { Toaster, toast } from "react-hot-toast"
+import { useState } from "react"
+import { Toaster } from "react-hot-toast"
 import { ImSpoonKnife } from "react-icons/im"
 import { IoClose } from "react-icons/io5"
 import { useDispatch, useSelector } from "react-redux"
 import { actionTypeKeys } from "../../Redux/actionTypes/actionTypes"
-import { IOrder, IState, ITaco } from "../../Redux/actionTypes/types"
+import { IOrder, IState } from "../../Redux/actionTypes/types"
 import "../Cart/cart.scss"
 
 const Cart = () => {
 	const showCart = useSelector((state: IState) => state.showCart)
 	const cartTaco = useSelector((state: IState) => state.cart)
+    
+    // 1. Бардык заказдардын санын алабыз (Активдүү + Тарыхтагы)
+    // Эгер Reducer-де 'history' жок болсо, 'orders.length' гана колдонуңуз
+	const ordersCount = useSelector((state: IState) => 
+        state.orders.length + ((state as any).history?.length || 0)
+    )
+
 	const [personCount, setPersonCount] = useState(1)
-	// Заказ ийгиликтүү болгонун билүү үчүн статус
 	const [isSuccess, setIsSuccess] = useState(false)
 	
 	const dispatch = useDispatch()
 
-	const subtotal = cartTaco.reduce((acc, el) => acc + el.price * el.quantity, 0)
-	const totalSum = subtotal // Доставка жана скидканы алып салсак болот (тез заказ үчүн)
+	const totalSum = cartTaco.reduce((acc, el) => acc + el.price * el.quantity, 0)
 
 	const handleCartClose = () => {
 		dispatch({ type: actionTypeKeys.TOGGLE_CART })
-		setIsSuccess(false) // Жапканда статусту баштапкыга келтиребиз
+		setTimeout(() => setIsSuccess(false), 300)
 	}
 
 	const handleAcceptOrder = () => {
 		if (cartTaco.length > 0) {
+            // 2. Жаңы номер: Бардык заказдар + 1
+            const nextOrderNumber = ordersCount + 1;
+
 			const newOrder: IOrder = {
-				id: `№${Math.floor(1000 + Math.random() * 9000)}`, // Заказ ID
+				id: String(nextOrderNumber), // Рандомдун ордуна катар номер
 				items: [...cartTaco],
 				totalSum: totalSum,
 				personCount: personCount,
 				status: 'pending',
-				createdAt: new Date().toLocaleTimeString(),
+				createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 			};
 
-			// 1. Ашканага жөнөтүү
 			dispatch({ type: actionTypeKeys.CREATE_ORDER, payload: newOrder });
-			
-			// 2. Билдирүү чыгаруу
 			setIsSuccess(true);
 			
-			// 3. 2 секунддан кийин корзинаны тазалап, жабуу
 			setTimeout(() => {
-				dispatch({ type: actionTypeKeys.CLEAR_CART });
-				setIsSuccess(false);
 				handleCartClose();
 				setPersonCount(1);
 			}, 2500);
@@ -58,15 +60,15 @@ const Cart = () => {
 			<div className="right__div">
 				
 				{isSuccess ? (
-					// ЗАКАЗ КЕТКЕНДЕН КИЙИНКИ ЭКРАН
 					<div style={{
 						display: 'flex', flexDirection: 'column', alignItems: 'center', 
 						justifyContent: 'center', height: '100%', textAlign: 'center'
 					}}>
 						<h1 style={{ color: '#4caf50', fontSize: '45px' }}>ПРИНЯТО! ✅</h1>
 						<h2 style={{ marginTop: '20px', fontSize: '30px', color: '#333' }}>
-							СЛЕДУЮЩИЙ ЗАКАЗ
+							ЗАКАЗ №{ordersCount + 1} {/* Кардарга азыркы номерин көрсөтөбүз */}
 						</h2>
+						<p>Кийинки заказга даярданыңыз</p>
 					</div>
 				) : (
 					<>
@@ -119,8 +121,8 @@ const Cart = () => {
 						</div>
 
 						{cartTaco.length > 0 && (
-							<button onClick={handleAcceptOrder} className="cart__banner" style={{background: '#4caf50'}}>
-								<p style={{fontSize: '22px'}}>ПРИНЯТЬ ЗАКАЗ</p>
+							<button onClick={handleAcceptOrder} className="cart__banner" style={{background: '#4caf50', border: 'none', cursor: 'pointer'}}>
+								<p style={{fontSize: '22px', color: 'white'}}>ПРИНЯТЬ ЗАКАЗ</p>
 							</button>
 						)}
 					</>
