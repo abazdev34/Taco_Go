@@ -1,173 +1,91 @@
 /** @format */
+import React from "react";
+import { NavLink } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { IState } from "../../Redux/actionTypes/types";
+import { actionTypeKeys } from "../../Redux/actionTypes/actionTypes";
+import { IoCartOutline, IoFastFood } from "react-icons/io5"; // Используем проверенную иконку
 
-import React, { useEffect, useState } from "react"
-import { FaShoppingCart, FaUser } from "react-icons/fa"
-import { GiTacos } from "react-icons/gi"
-import { useDispatch, useSelector } from "react-redux"
-import { NavLink } from "react-router-dom"
-import { actionTypeKeys } from "../../Redux/actionTypes/actionTypes"
-import { IState } from "../../Redux/actionTypes/types"
-import Logo from "../../assets/img/Takogo.jpg"
-import PendingAnimation from "../../assets/img/fade-stagger-circles.svg"
-import "./Header.scss"
-import HeaderMenu from "./HeaderMenu/HeaderMenu"
-import MenuButton from "./MenuButton/MenuButton"
 const Header: React.FC = () => {
-	const [isShrunk, setIsShrunk] = useState<boolean>(false)
-	const [isPending, setIsPending] = useState<boolean>(false)
-	const [isItMobile, setIsItMobile] = useState<boolean>(false)
-	const cart = useSelector((state: IState) => state.cart)
-	const dispatch = useDispatch()
-	const toggleCart = () => {
-		dispatch({ type: actionTypeKeys.TOGGLE_CART })
-	}
-	const subtotal = cart.reduce((acc, el) => {
-		return acc + el.price * el.quantity
-	}, 0)
-	const discount = subtotal > 200 ? subtotal * 0.1 : 0
-	const totalSum = subtotal - discount
-	useEffect(() => {
-		setIsPending(true)
-		setTimeout(() => {
-			setIsPending(false)
-		}, 500)
-	}, [subtotal])
+  const cart = useSelector((state: IState) => state.cart);
+  const dispatch = useDispatch();
 
-	useEffect(() => {
-		const handleScroll = () => {
-			setIsShrunk(window.scrollY > 5)
-			setIsItMobile(window.innerWidth < 1000)
-		}
-		window.addEventListener("scroll", handleScroll)
-		return () => {
-			window.removeEventListener("scroll", handleScroll)
-		}
-	}, [])
+  const toggleCart = () => dispatch({ type: actionTypeKeys.TOGGLE_CART });
 
-	return (
-		<div
-			id="header"
-			style={{
-				height: isShrunk ? "50px" : "100px",
-			}}
-		>
-			<div className="container">
-				<div className="header">
-					<div className="header__div">
-						<div className="header__logo">
-							<NavLink to={"/"}>
-								<img
-									rel="preload"
-									src={Logo}
-									alt=""
-									style={{
-										height: isShrunk ? "50px" : "100px",
-										width: isShrunk ? "50px" : "100px",
-									}}
-								/>
-							</NavLink>
-						</div>
-						<div className="header__title">
-							<div
-								className={
-									isShrunk ? "header__title__tel--shrunk" : "header__title__tel"
-								}
-							>
-								<h1>Доставка мексиканской еды</h1>
-								<p>Время работы: 10:00 - 03:00</p>
-							</div>
+  const logoAnimation = `
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+    .logo-container:hover .burrito-icon {
+      animation: bounce 0.5s infinite;
+    }
+  `;
 
-							<div className="header__nav">
-								<NavLink to={"/"}>Меню</NavLink>
-								<NavLink to={"/sales"}>Акции</NavLink>
-								<NavLink to={"/address"}>О доставке</NavLink>
-								<NavLink to={"/reviews"}>Отзывы</NavLink>
-								<NavLink to={"/admin"}>Admin</NavLink>
-								<span>
-									<NavLink to={"/address"}>г Ош, ул Масалиева</NavLink>
-								</span>
-							</div>
-						</div>
-					</div>
-					<div className="header__blog">
-						<div
-							className={
-								isShrunk ? "header__contact--shrunk" : "header__contact"
-							}
-						>
-							<h2>+996 772 308449</h2>
-						</div>
-						<div className="header__auth">
-							<div
-								className="header__logIn"
-								style={{
-									transform: isItMobile && isShrunk ? "scale(0.8)" : "",
-									marginTop: isItMobile && isShrunk ? "-13px" : "",
-								}}
-							>
-								<button>
-									{" "}
-									<p className="header__logIn__icon">
-										<FaUser />
-									</p>
-									<p>Войти</p>
-								</button>
-							</div>
-							<div
-								className="header__cart"
-								style={{
-									background: cart.length > 0 ? "#ffe271" : "none",
-								}}
-							>
-								<button onClick={toggleCart}>
-									<p
-										style={{
-											color: cart.length > 0 ? "black" : "",
-										}}
-										className="header__cart__icon"
-									>
-										<FaShoppingCart />
-									</p>
+  return (
+    <header style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '10px 50px',
+      background: '#ffffff',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 1000,
+    }}>
+      <style>{logoAnimation}</style>
 
-									{isPending ? (
-										<img
-											src={PendingAnimation}
-											className="cart__pending"
-											alt=""
-										/>
-									) : (
-										<div className="cart__info">
-											<p
-												style={{
-													color: cart.length > 0 ? "black" : "none",
-												}}
-											>
-												{cart.reduce((acc, el) => acc + el.quantity, 0)}{" "}
-												<GiTacos />
-											</p>
-											<p
-												style={{
-													color: cart.length > 0 ? "black" : "none",
-													fontWeight: "bold",
-												}}
-											>
-												{totalSum.toFixed(0)} ₽{" "}
-											</p>
-										</div>
-									)}
-								</button>
-							</div>
-							<div className="header__burger__menu">
-								<MenuButton />
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
+      {/* ЛОГОТИП */}
+      <NavLink to="/" className="logo-container" style={{ 
+        textDecoration: 'none', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '12px'
+      }}>
+        <div className="burrito-icon" style={{
+          background: 'linear-gradient(135deg, #ff4d00, #ff8c00)',
+          width: '45px',
+          height: '45px',
+          borderRadius: '12px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: 'white',
+          fontSize: '28px',
+          boxShadow: '0 5px 15px rgba(255, 77, 0, 0.3)'
+        }}>
+          <IoFastFood />
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.9' }}>
+          <span style={{ fontSize: '22px', fontWeight: '900', color: '#2c3e50', textTransform: 'uppercase' }}>
+            БУРИТ<span style={{ color: '#ff4d00' }}>ТОС</span>
+          </span>
+          <span style={{ fontSize: '11px', fontWeight: '600', color: '#bdc3c7', letterSpacing: '2px' }}>
+            BURRITOS
+          </span>
+        </div>
+      </NavLink>
 
-			<HeaderMenu />
-		</div>
-	)
-}
+      {/* НАВИГАЦИЯ */}
+      <nav style={{ display: 'flex', gap: '10px' }}>
+        <NavLink to="/" style={({isActive}) => ({ textDecoration: 'none', color: isActive ? '#ff4d00' : '#2c3e50', fontWeight: '700', padding: '10px' })}>Меню / Menu</NavLink>
+        <NavLink to="/kitchen" style={({isActive}) => ({ textDecoration: 'none', color: isActive ? '#ff4d00' : '#2c3e50', fontWeight: '700', padding: '10px' })}>Кухня / Kitchen</NavLink>
+        <NavLink to="/history" style={({isActive}) => ({ textDecoration: 'none', color: isActive ? '#ff4d00' : '#2c3e50', fontWeight: '700', padding: '10px' })}>История / History</NavLink>
+      </nav>
 
-export default Header
+      {/* КОРЗИНА */}
+      <div onClick={toggleCart} style={{ position: 'relative', cursor: 'pointer', background: '#f4f7f6', padding: '10px', borderRadius: '12px' }}>
+        <IoCartOutline size={28} color="#2c3e50" />
+        {cart.length > 0 && (
+          <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ff4d00', color: 'white', fontSize: '12px', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+            {cart.reduce((acc, item) => acc + item.quantity, 0)}
+          </span>
+        )}
+      </div>
+    </header>
+  );
+};
+
+export default Header;
