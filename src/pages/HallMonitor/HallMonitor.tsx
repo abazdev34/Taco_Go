@@ -1,15 +1,27 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import Navbar from "../Navbar/Navbar"
 import "../Navbar/monitor.scss"
 import { useOrders } from "../../hooks/useOrders"
+import { isFullscreenActive, toggleFullscreen } from "../../utils/fullscreen"
 
 const HallMonitor = () => {
 	const { orders, loading, error } = useOrders()
 	const [clock, setClock] = useState(new Date())
+	const [isTvMode, setIsTvMode] = useState(false)
+	const pageRef = useRef<HTMLDivElement | null>(null)
 
 	useEffect(() => {
 		const timer = setInterval(() => setClock(new Date()), 1000)
 		return () => clearInterval(timer)
+	}, [])
+
+	useEffect(() => {
+		const onChange = () => {
+			setIsTvMode(isFullscreenActive())
+		}
+
+		document.addEventListener("fullscreenchange", onChange)
+		return () => document.removeEventListener("fullscreenchange", onChange)
 	}, [])
 
 	const leftOrders = orders.filter(
@@ -17,8 +29,13 @@ const HallMonitor = () => {
 	)
 	const readyOrders = orders.filter((order) => order.status === "ready")
 
+	const handleToggleTvMode = async () => {
+		await toggleFullscreen(pageRef.current)
+		setIsTvMode(isFullscreenActive())
+	}
+
 	return (
-		<div className="monitor-page hall-theme">
+		<div className="monitor-page hall-theme" ref={pageRef}>
 			<Navbar />
 
 			<div className="page-header">
@@ -27,15 +44,21 @@ const HallMonitor = () => {
 					<p>Заказы в работе и готовые к выдаче</p>
 				</div>
 
-				<div className="top-info-card">
-					<span>Текущее время</span>
-					<strong>
-						{clock.toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-							second: "2-digit",
-						})}
-					</strong>
+				<div className="hall-header-actions">
+					<div className="top-info-card">
+						<span>Текущее время</span>
+						<strong>
+							{clock.toLocaleTimeString([], {
+								hour: "2-digit",
+								minute: "2-digit",
+								second: "2-digit",
+							})}
+						</strong>
+					</div>
+
+					<button className="tv-mode-btn" onClick={handleToggleTvMode}>
+						{isTvMode ? "Выйти из TV режима" : "TV режим"}
+					</button>
 				</div>
 			</div>
 

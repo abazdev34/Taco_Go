@@ -1,19 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react"
-import { tacosData } from "../../Redux/tacosData/tacosData"
-import Navbar from "../Navbar/Navbar"
-import "../Navbar/monitor.scss"
-import { createOrder, updateOrderStatus } from "../../api/orders"
-import { useOrders } from "../../hooks/useOrders"
-import { IMenuItem } from "../../types/order"
-import { formatPrice } from "../../utils/currency"
+import { useEffect, useMemo, useState } from 'react'
+import { tacosData } from '../../Redux/tacosData/tacosData'
+import { createOrder, updateOrderStatus } from '../../api/orders'
+import { useOrders } from '../../hooks/useOrders'
+import { IMenuItem } from '../../types/order'
+import { formatPrice } from '../../utils/currency'
+import Navbar from '../Navbar/Navbar'
+import '../Navbar/monitor.scss'
 
 const CashierMonitor = () => {
 	const [cart, setCart] = useState<IMenuItem[]>([])
-	const [activeCategory, setActiveCategory] = useState("Все")
-	const [search, setSearch] = useState("")
+	const [activeCategory, setActiveCategory] = useState('Все')
+	const [search, setSearch] = useState('')
 	const [clock, setClock] = useState(new Date())
 	const [submitting, setSubmitting] = useState(false)
-	const [busyOrderId, setBusyOrderId] = useState("")
+	const [busyOrderId, setBusyOrderId] = useState('')
 
 	const { orders, history, loading, error } = useOrders()
 
@@ -22,7 +22,7 @@ const CashierMonitor = () => {
 		return () => clearInterval(timer)
 	}, [])
 
-	const categories = ["Все", ...tacosData.map((item) => item.title)]
+	const categories = ['Все', ...tacosData.map((item: any) => item.title)]
 
 	const allFoods = useMemo(() => {
 		return tacosData.flatMap((group: any) =>
@@ -36,7 +36,7 @@ const CashierMonitor = () => {
 	const filteredFoods = useMemo(() => {
 		let data = allFoods
 
-		if (activeCategory !== "Все") {
+		if (activeCategory !== 'Все') {
 			data = data.filter((item: any) => item.category === activeCategory)
 		}
 
@@ -72,9 +72,7 @@ const CashierMonitor = () => {
 		setCart((prev) =>
 			prev
 				.map((p) =>
-					p.id === item.id
-						? { ...p, quantity: (p.quantity || 1) - 1 }
-						: p
+					p.id === item.id ? { ...p, quantity: (p.quantity || 1) - 1 } : p
 				)
 				.filter((p) => (p.quantity || 0) > 0)
 		)
@@ -82,14 +80,15 @@ const CashierMonitor = () => {
 
 	const handleCreateOrder = async () => {
 		if (!cart.length) return
+
 		try {
 			setSubmitting(true)
 			await createOrder(cart, totalSum)
 			setCart([])
-			setSearch("")
-		} catch (e) {
-			console.error(e)
-			alert("Не удалось создать заказ")
+			setSearch('')
+		} catch (e: any) {
+			console.error('CREATE ORDER ERROR:', e)
+			alert(e?.message || 'Не удалось создать заказ')
 		} finally {
 			setSubmitting(false)
 		}
@@ -98,83 +97,116 @@ const CashierMonitor = () => {
 	const handleComplete = async (id: string) => {
 		try {
 			setBusyOrderId(id)
-			await updateOrderStatus(id, "completed")
-		} catch (e) {
-			console.error(e)
-			alert("Не удалось завершить заказ")
+			await updateOrderStatus(id, 'completed')
+		} catch (e: any) {
+			console.error('COMPLETE ORDER ERROR:', e)
+			alert(e?.message || 'Не удалось завершить заказ')
 		} finally {
-			setBusyOrderId("")
+			setBusyOrderId('')
 		}
 	}
 
 	const getStatusText = (status: string) => {
 		switch (status) {
-			case "new":
-				return "Новый"
-			case "preparing":
-				return "Готовится"
-			case "ready":
-				return "Готов к выдаче"
+			case 'new':
+				return 'Новый'
+			case 'preparing':
+				return 'Готовится'
+			case 'ready':
+				return 'Готов к выдаче'
 			default:
-				return "Неизвестно"
+				return 'Неизвестно'
 		}
 	}
 
 	return (
-		<div className="monitor-page cashier-theme">
+		<div className='monitor-page cashier-theme'>
 			<Navbar />
 
-			<div className="page-header">
+			<div className='page-header'>
 				<div>
 					<h1>Рабочее место кассира</h1>
 					<p>Прием устных заказов и выдача готовых</p>
 				</div>
 
-				<div className="top-info-card">
+				<div className='top-info-card'>
 					<span>Текущее время</span>
 					<strong>
 						{clock.toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-							second: "2-digit",
+							hour: '2-digit',
+							minute: '2-digit',
+							second: '2-digit',
 						})}
 					</strong>
 				</div>
 			</div>
 
-			<div className="stats-grid">
-				<div className="stat-box">
+			<div className='stats-grid'>
+				<div className='stat-box'>
 					<span>Активные заказы</span>
 					<h2>{orders.length}</h2>
 				</div>
-				<div className="stat-box">
+				<div className='stat-box'>
 					<span>Позиций в корзине</span>
 					<h2>{totalItems}</h2>
 				</div>
-				<div className="stat-box">
+				<div className='stat-box'>
 					<span>Закрытые заказы</span>
 					<h2>{history.length}</h2>
 				</div>
-				<div className="stat-box accent">
+				<div className='stat-box accent'>
 					<span>Сумма корзины</span>
 					<h2>{formatPrice(totalSum)}</h2>
 				</div>
 			</div>
 
-			{error && <div className="error-box">{error}</div>}
+			{error && <div className='error-box'>{error}</div>}
 
-			<div className="cashier-layout">
-				<aside className="panel sidebar-panel">
-					<div className="panel-heading">
+			<div className='cashier-layout right-category-layout'>
+				<section className='panel menu-panel simple-menu-panel'>
+					<div className='panel-toolbar'>
+						<div>
+							<h3>Меню</h3>
+							<p>Фото, название и кнопка добавления</p>
+						</div>
+
+						<input
+							type='text'
+							className='search-input'
+							placeholder='Поиск блюда...'
+							value={search}
+							onChange={(e) => setSearch(e.currentTarget.value)}
+						/>
+					</div>
+
+					<div className='simple-foods-grid'>
+						{filteredFoods.map((item: any) => (
+							<div className='simple-food-card' key={item.id}>
+								<img src={item.img} alt={item.title} />
+								<div className='simple-food-card__body'>
+									<h4>{item.title}</h4>
+									<button onClick={() => addToCart(item)}>Добавить</button>
+								</div>
+							</div>
+						))}
+					</div>
+				</section>
+
+				<aside className='panel right-category-panel'>
+					<div className='panel-heading'>
 						<h3>Категории</h3>
 					</div>
 
-					<div className="category-list">
+					<div className='category-list'>
 						{categories.map((category, index) => (
 							<button
 								key={index}
 								onClick={() => setActiveCategory(category)}
-								className={activeCategory === category ? "category-btn active" : "category-btn"}
+								className={
+									activeCategory === category
+										? 'category-btn active'
+										: 'category-btn'
+								}
 							>
 								{category}
 							</button>
@@ -182,61 +214,28 @@ const CashierMonitor = () => {
 					</div>
 				</aside>
 
-				<section className="panel menu-panel">
-					<div className="panel-toolbar">
-						<div>
-							<h3>Меню</h3>
-							<p>Выберите блюда для нового заказа</p>
-						</div>
-
-						<input
-							type="text"
-							className="search-input"
-							placeholder="Поиск блюда..."
-							value={search}
-							onChange={(e) => setSearch(e.currentTarget.value)}
-						/>
-					</div>
-
-					<div className="foods-grid">
-						{filteredFoods.map((item: any) => (
-							<div className="food-card" key={item.id}>
-								<img src={item.img} alt={item.title} />
-								<div className="food-card__body">
-									<div>
-										<h4>{item.title}</h4>
-										<span>{item.category}</span>
-									</div>
-									<div className="food-card__bottom">
-										<b>{formatPrice(item.price)}</b>
-										<button onClick={() => addToCart(item)}>Добавить</button>
-									</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</section>
-
-				<aside className="panel order-panel">
-					<div className="panel-heading">
+				<aside className='panel order-panel'>
+					<div className='panel-heading'>
 						<h3>Корзина</h3>
 					</div>
 
-					<div className="cart-list">
+					<div className='cart-list'>
 						{cart.length === 0 ? (
-							<div className="empty-box">Корзина пуста</div>
+							<div className='empty-box'>Корзина пуста</div>
 						) : (
 							cart.map((item) => (
-								<div className="cart-item" key={item.id}>
-									<div className="cart-item__top">
+								<div className='cart-item' key={item.id}>
+									<div className='cart-item__top'>
 										<div>
 											<h4>{item.title}</h4>
 											<p>{formatPrice(item.price)}</p>
 										</div>
-										<strong>{formatPrice(item.price * (item.quantity || 1))}</strong>
+										<strong>
+											{formatPrice(item.price * (item.quantity || 1))}
+										</strong>
 									</div>
 
-									<div className="qty-controls">
+									<div className='qty-controls'>
 										<button onClick={() => removeFromCart(item)}>-</button>
 										<span>{item.quantity}</span>
 										<button onClick={() => addToCart(item)}>+</button>
@@ -246,55 +245,55 @@ const CashierMonitor = () => {
 						)}
 					</div>
 
-					<div className="order-summary">
-						<div className="summary-row">
+					<div className='order-summary'>
+						<div className='summary-row'>
 							<span>Позиций</span>
 							<strong>{totalItems}</strong>
 						</div>
 
-						<div className="summary-total">
+						<div className='summary-total'>
 							<span>Итого</span>
 							<h2>{formatPrice(totalSum)}</h2>
 						</div>
 
 						<button
-							className="primary-btn"
+							className='primary-btn'
 							onClick={handleCreateOrder}
 							disabled={!cart.length || submitting}
 						>
-							{submitting ? "Сохранение..." : "Принять заказ"}
+							{submitting ? 'Сохранение...' : 'Принять заказ'}
 						</button>
 					</div>
 
-					<div className="accepted-orders">
-						<div className="panel-heading">
+					<div className='accepted-orders'>
+						<div className='panel-heading'>
 							<h3>Принятые заказы</h3>
 						</div>
 
 						{loading ? (
-							<div className="empty-box small">Загрузка...</div>
+							<div className='empty-box small'>Загрузка...</div>
 						) : orders.length === 0 ? (
-							<div className="empty-box small">Активных заказов нет</div>
+							<div className='empty-box small'>Активных заказов нет</div>
 						) : (
 							orders.map((order: any) => (
-								<div className="accepted-order-item" key={order.id}>
+								<div className='accepted-order-item' key={order.id}>
 									<div>
 										<h4>Заказ №{order.order_number}</h4>
 										<p>{new Date(order.created_at).toLocaleTimeString()}</p>
 									</div>
 
-									<div className="accepted-order-actions">
+									<div className='accepted-order-actions'>
 										<span className={`status-badge ${order.status}`}>
 											{getStatusText(order.status)}
 										</span>
 
-										{order.status === "ready" && (
+										{order.status === 'ready' && (
 											<button
-												className="issue-btn"
+												className='issue-btn'
 												disabled={busyOrderId === order.id}
 												onClick={() => handleComplete(order.id)}
 											>
-												{busyOrderId === order.id ? "..." : "Выдан"}
+												{busyOrderId === order.id ? '...' : 'Выдан'}
 											</button>
 										)}
 									</div>
