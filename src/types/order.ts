@@ -9,22 +9,6 @@ export interface IMenuItem {
 	category: string
 }
 
-export interface ICategoryItem {
-	id: string
-	img: string
-	title: string
-	measure: string
-	quantity: number
-	price: number
-	description: string
-}
-
-export interface ICategoryBlock {
-	id: string
-	title: string
-	tacoCategory: ICategoryItem[]
-}
-
 export type TOrderStatus = "new" | "preparing" | "ready" | "completed"
 
 export interface IOrderRow {

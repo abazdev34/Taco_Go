@@ -8,7 +8,11 @@ export const fetchActiveOrders = async (): Promise<IOrderRow[]> => {
 		.neq("status", "completed")
 		.order("order_number", { ascending: false })
 
-	if (error) throw error
+	if (error) {
+		console.error("fetchActiveOrders error:", error)
+		throw error
+	}
+
 	return (data || []) as IOrderRow[]
 }
 
@@ -19,7 +23,11 @@ export const fetchHistoryOrders = async (): Promise<IOrderRow[]> => {
 		.eq("status", "completed")
 		.order("order_number", { ascending: false })
 
-	if (error) throw error
+	if (error) {
+		console.error("fetchHistoryOrders error:", error)
+		throw error
+	}
+
 	return (data || []) as IOrderRow[]
 }
 
@@ -36,7 +44,11 @@ export const createOrder = async (items: IMenuItem[], total: number) => {
 		.select("*")
 		.single()
 
-	if (error) throw error
+	if (error) {
+		console.error("createOrder error:", error)
+		throw error
+	}
+
 	return data as IOrderRow
 }
 
@@ -51,6 +63,10 @@ export const updateOrderStatus = async (
 		.select("*")
 		.single()
 
-	if (error) throw error
+	if (error) {
+		console.error("updateOrderStatus error:", error)
+		throw error
+	}
+
 	return data as IOrderRow
 }
