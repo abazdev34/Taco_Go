@@ -1,142 +1,90 @@
-import { useEffect, useRef, useState } from 'react'
-import { updateOrderStatus } from '../../api/orders'
+import { useEffect, useMemo, useRef } from 'react'
 import { useOrders } from '../../hooks/useOrders'
-import { broadcastOrderUpdated, patchOrderStatus } from '../../lib/orderSync'
-import { IOrderRow } from '../../types/order'
-import { formatPrice } from '../../utils/currency'
-import Navbar from '../Navbar/Navbar'
+import { updateOrderStatus } from '../../api/orders'
 import '../Navbar/monitor.scss'
-
-const playKitchenSound = () => {
-	try {
-		const AudioContextClass =
-			window.AudioContext || (window as any).webkitAudioContext
-
-		if (!AudioContextClass) return
-
-		const ctx = new AudioContextClass()
-		const osc1 = ctx.createOscillator()
-		const gain = ctx.createGain()
-
-		osc1.type = 'triangle'
-		osc1.frequency.setValueAtTime(880, ctx.currentTime)
-		osc1.frequency.setValueAtTime(988, ctx.currentTime + 0.08)
-		osc1.frequency.setValueAtTime(740, ctx.currentTime + 0.18)
-
-		gain.gain.setValueAtTime(0.001, ctx.currentTime)
-		gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.02)
-		gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.42)
-
-		osc1.connect(gain)
-		gain.connect(ctx.destination)
-
-		osc1.start(ctx.currentTime)
-		osc1.stop(ctx.currentTime + 0.42)
-	} catch (error) {
-		console.error('Sound error:', error)
-	}
-}
+import { playNewOrderSound } from '../../utils/sound'
+import { IOrderRow } from '../../types/order'
 
 const KitchenMonitor = () => {
-	const { orders, loading, error, setOrders } = useOrders()
-	const [clock, setClock] = useState(new Date())
-	const [busyId, setBusyId] = useState('')
-	const prevNewIdsRef = useRef<string[]>([])
+	const { orders, loading, error } = useOrders()
+	const prevOrdersRef = useRef<IOrderRow[]>([])
 
 	useEffect(() => {
-		const timer = setInterval(() => setClock(new Date()), 1000)
-		return () => clearInterval(timer)
-	}, [])
-
-	useEffect(() => {
-		const newOrders = orders.filter((order) => order.status === 'new')
-		const currentIds = newOrders.map((order) => order.id)
-
-		if (prevNewIdsRef.current.length > 0) {
-			const hasNewOrder = currentIds.some(
-				(id) => !prevNewIdsRef.current.includes(id),
-			)
-			if (hasNewOrder) playKitchenSound()
+		if (!orders.length) {
+			prevOrdersRef.current = orders
+			return
 		}
 
-		prevNewIdsRef.current = currentIds
+		const prev = prevOrdersRef.current
+
+		const incomingNewOrders = orders.filter(
+			(order) =>
+				order.status === 'new' &&
+				!prev.some((prevOrder) => prevOrder.id === order.id)
+		)
+
+		if (incomingNewOrders.length > 0) {
+			playNewOrderSound()
+		}
+
+		prevOrdersRef.current = orders
 	}, [orders])
 
-	const newOrders = orders.filter((order) => order.status === 'new')
-	const preparingOrders = orders.filter((order) => order.status === 'preparing')
-	const readyOrders = orders.filter((order) => order.status === 'ready')
+	const newOrders = useMemo(() => {
+		return orders
+			.filter((order) => order.status === 'new')
+			.sort((a, b) => b.order_number - a.order_number)
+	}, [orders])
 
-	const handleAccept = async (id: string) => {
+	const preparingOrders = useMemo(() => {
+		return orders
+			.filter((order) => order.status === 'preparing')
+			.sort((a, b) => b.order_number - a.order_number)
+	}, [orders])
+
+	const readyOrders = useMemo(() => {
+		return orders
+			.filter((order) => order.status === 'ready')
+			.sort((a, b) => b.order_number - a.order_number)
+	}, [orders])
+
+	const getSourceText = (source?: string) => {
+		switch (source) {
+			case 'client':
+				return 'Клиент'
+			case 'cashier':
+				return 'Кассир'
+			default:
+				return 'Неизвестно'
+		}
+	}
+
+	const handleStartCooking = async (id: string) => {
 		try {
-			setBusyId(id)
-
-			const current = orders.find((order) => order.id === id)
-			if (!current) return
-
-			const optimistic = patchOrderStatus(current, 'preparing')
-			setOrders((prev: IOrderRow[]) =>
-				prev.map((order) => (order.id === id ? optimistic : order)),
-			)
-			broadcastOrderUpdated(optimistic)
-
-			const saved = await updateOrderStatus(id, 'preparing')
-			setOrders((prev: IOrderRow[]) =>
-				prev.map((order) => (order.id === id ? saved : order)),
-			)
-			broadcastOrderUpdated(saved)
-		} catch (e) {
-			console.error(e)
-			alert('Не удалось принять заказ')
-		} finally {
-			setBusyId('')
+			await updateOrderStatus(id, 'preparing')
+		} catch (error) {
+			console.error('Ошибка перевода заказа в статус preparing:', error)
+			alert('Не удалось принять заказ в работу')
 		}
 	}
 
 	const handleReady = async (id: string) => {
 		try {
-			setBusyId(id)
-
-			const current = orders.find((order) => order.id === id)
-			if (!current) return
-
-			const optimistic = patchOrderStatus(current, 'ready')
-			setOrders((prev: IOrderRow[]) =>
-				prev.map((order) => (order.id === id ? optimistic : order)),
-			)
-			broadcastOrderUpdated(optimistic)
-
-			const saved = await updateOrderStatus(id, 'ready')
-			setOrders((prev: IOrderRow[]) =>
-				prev.map((order) => (order.id === id ? saved : order)),
-			)
-			broadcastOrderUpdated(saved)
-		} catch (e) {
-			console.error(e)
-			alert('Не удалось отметить готовность')
-		} finally {
-			setBusyId('')
+			await updateOrderStatus(id, 'ready')
+		} catch (error) {
+			console.error('Ошибка перевода заказа в статус ready:', error)
+			alert('Не удалось отметить заказ как готовый')
 		}
 	}
 
 	return (
 		<div className='monitor-page kitchen-theme'>
-			<Navbar />
+			
 
 			<div className='page-header'>
 				<div>
 					<h1>Монитор кухни</h1>
 					<p>Новые, готовящиеся и готовые заказы</p>
-				</div>
-
-				<div className='top-info-card'>
-					<span>Текущее время</span>
-					<strong>
-						{clock.toLocaleTimeString([], {
-							hour: '2-digit',
-							minute: '2-digit',
-							second: '2-digit',
-						})}
-					</strong>
 				</div>
 			</div>
 
@@ -156,10 +104,7 @@ const KitchenMonitor = () => {
 							<div className='empty-box'>Нет новых заказов</div>
 						) : (
 							newOrders.map((order) => (
-								<div
-									className='order-card new-card kitchen-flash'
-									key={order.id}
-								>
+								<div className='order-card new-card' key={order.id}>
 									<div className='order-card__header'>
 										<h2>Заказ №{order.order_number}</h2>
 										<span className='status-badge new'>Новый</span>
@@ -167,26 +112,37 @@ const KitchenMonitor = () => {
 
 									<div className='order-meta'>
 										<p>
-											Создан: {new Date(order.created_at).toLocaleTimeString()}
+											<strong>Время:</strong>{' '}
+											{new Date(order.created_at).toLocaleTimeString()}
 										</p>
-										<p>Сумма: {formatPrice(order.total)}</p>
+										<p>
+											<strong>Источник:</strong> {getSourceText(order.source)}
+										</p>
 									</div>
 
 									<div className='order-items'>
-										{order.items.map((item) => (
-											<div key={item.id} className='order-item-line'>
+										{order.items.map((item, index) => (
+											<div
+												key={`${order.id}-${item.id}-${index}`}
+												className='order-item-line'
+											>
 												<span>{item.title}</span>
-												<strong>x{item.quantity}</strong>
+												<strong>x{item.quantity || 1}</strong>
 											</div>
 										))}
 									</div>
 
+									{order.comment && (
+										<div className='kitchen-comment-box'>
+											💬 {order.comment}
+										</div>
+									)}
+
 									<button
 										className='primary-btn'
-										disabled={busyId === order.id}
-										onClick={() => handleAccept(order.id)}
+										onClick={() => handleStartCooking(order.id)}
 									>
-										{busyId === order.id ? '...' : 'Принять в работу'}
+										Принять в работу
 									</button>
 								</div>
 							))
@@ -215,26 +171,37 @@ const KitchenMonitor = () => {
 
 									<div className='order-meta'>
 										<p>
-											Создан: {new Date(order.created_at).toLocaleTimeString()}
+											<strong>Время:</strong>{' '}
+											{new Date(order.created_at).toLocaleTimeString()}
 										</p>
-										<p>Сумма: {formatPrice(order.total)}</p>
+										<p>
+											<strong>Источник:</strong> {getSourceText(order.source)}
+										</p>
 									</div>
 
 									<div className='order-items'>
-										{order.items.map((item) => (
-											<div key={item.id} className='order-item-line'>
+										{order.items.map((item, index) => (
+											<div
+												key={`${order.id}-${item.id}-${index}`}
+												className='order-item-line'
+											>
 												<span>{item.title}</span>
-												<strong>x{item.quantity}</strong>
+												<strong>x{item.quantity || 1}</strong>
 											</div>
 										))}
 									</div>
 
+									{order.comment && (
+										<div className='kitchen-comment-box'>
+											💬 {order.comment}
+										</div>
+									)}
+
 									<button
 										className='success-btn'
-										disabled={busyId === order.id}
 										onClick={() => handleReady(order.id)}
 									>
-										{busyId === order.id ? '...' : 'Готов'}
+										Готово
 									</button>
 								</div>
 							))
@@ -263,19 +230,31 @@ const KitchenMonitor = () => {
 
 									<div className='order-meta'>
 										<p>
-											Создан: {new Date(order.created_at).toLocaleTimeString()}
+											<strong>Время:</strong>{' '}
+											{new Date(order.created_at).toLocaleTimeString()}
 										</p>
-										<p>Сумма: {formatPrice(order.total)}</p>
+										<p>
+											<strong>Источник:</strong> {getSourceText(order.source)}
+										</p>
 									</div>
 
 									<div className='order-items'>
-										{order.items.map((item) => (
-											<div key={item.id} className='order-item-line'>
+										{order.items.map((item, index) => (
+											<div
+												key={`${order.id}-${item.id}-${index}`}
+												className='order-item-line'
+											>
 												<span>{item.title}</span>
-												<strong>x{item.quantity}</strong>
+												<strong>x{item.quantity || 1}</strong>
 											</div>
 										))}
 									</div>
+
+									{order.comment && (
+										<div className='kitchen-comment-box'>
+											💬 {order.comment}
+										</div>
+									)}
 								</div>
 							))
 						)}

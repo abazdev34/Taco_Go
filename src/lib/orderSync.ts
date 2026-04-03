@@ -1,60 +1,45 @@
-import { IOrderRow, TOrderStatus } from "../types/order"
+import { IOrderRow, TOrderStatus } from '../types/order'
 
-type SyncMessage =
-	| { type: "ORDER_CREATED"; payload: IOrderRow }
-	| { type: "ORDER_UPDATED"; payload: IOrderRow }
-	| { type: "ORDER_COMPLETED"; payload: IOrderRow }
+type OrderSyncMessage =
+	| { type: 'ORDER_CREATED'; payload: IOrderRow }
+	| { type: 'ORDER_UPDATED'; payload: IOrderRow }
+	| { type: 'ORDER_COMPLETED'; payload: IOrderRow }
 
-const CHANNEL_NAME = "taco-go-orders-sync"
-
-let channel: BroadcastChannel | null = null
-
-export const getOrderChannel = () => {
-	if (typeof window === "undefined") return null
-	if (!("BroadcastChannel" in window)) return null
-
-	if (!channel) {
-		channel = new BroadcastChannel(CHANNEL_NAME)
-	}
-
-	return channel
-}
+const ORDER_SYNC_EVENT = 'order-sync-event'
 
 export const broadcastOrderCreated = (order: IOrderRow) => {
-	getOrderChannel()?.postMessage({
-		type: "ORDER_CREATED",
-		payload: order,
-	})
+	window.dispatchEvent(
+		new CustomEvent<OrderSyncMessage>(ORDER_SYNC_EVENT, {
+			detail: { type: 'ORDER_CREATED', payload: order },
+		})
+	)
 }
 
 export const broadcastOrderUpdated = (order: IOrderRow) => {
-	getOrderChannel()?.postMessage({
-		type: "ORDER_UPDATED",
-		payload: order,
-	})
-}
-
-export const broadcastOrderCompleted = (order: IOrderRow) => {
-	getOrderChannel()?.postMessage({
-		type: "ORDER_COMPLETED",
-		payload: order,
-	})
+	window.dispatchEvent(
+		new CustomEvent<OrderSyncMessage>(ORDER_SYNC_EVENT, {
+			detail: {
+				type: order.status === 'completed' ? 'ORDER_COMPLETED' : 'ORDER_UPDATED',
+				payload: order,
+			},
+		})
+	)
 }
 
 export const subscribeOrderSync = (
-	handler: (message: SyncMessage) => void
+	callback: (message: OrderSyncMessage) => void
 ) => {
-	const ch = getOrderChannel()
-	if (!ch) return () => {}
-
-	const listener = (event: MessageEvent<SyncMessage>) => {
-		handler(event.data)
+	const handler = (event: Event) => {
+		const customEvent = event as CustomEvent<OrderSyncMessage>
+		if (customEvent.detail) {
+			callback(customEvent.detail)
+		}
 	}
 
-	ch.addEventListener("message", listener)
+	window.addEventListener(ORDER_SYNC_EVENT, handler)
 
 	return () => {
-		ch.removeEventListener("message", listener)
+		window.removeEventListener(ORDER_SYNC_EVENT, handler)
 	}
 }
 

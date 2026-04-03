@@ -9,7 +9,8 @@ export interface IMenuItem {
 	category: string
 }
 
-export type TOrderStatus = "new" | "preparing" | "ready" | "completed"
+export type TOrderStatus = 'new' | 'preparing' | 'ready' | 'completed'
+export type TOrderSource = 'cashier' | 'client'
 
 export interface IOrderRow {
 	id: string
@@ -19,6 +20,8 @@ export interface IOrderRow {
 	status: TOrderStatus
 	items: IMenuItem[]
 	total: number
+	comment?: string
+	source?: TOrderSource
 	created_at: string
 	updated_at: string
 }
