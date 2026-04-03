@@ -1,4 +1,4 @@
-import React from "react"
+
 import { Navigate, Route, Routes } from "react-router-dom"
 import CashierMonitor from "./pages/CashierMonitor/CashierMonitor"
 import KitchenMonitor from "./pages/KitchenMonitor/KitchenMonitor"
