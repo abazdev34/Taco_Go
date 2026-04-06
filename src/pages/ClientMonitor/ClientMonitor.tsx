@@ -4,7 +4,7 @@ import { createOrder } from '../../api/orders'
 import { broadcastOrderCreated } from '../../lib/orderSync'
 import { IMenuItem } from '../../types/order'
 import { formatPrice } from '../../utils/currency'
-import '../Navbar/monitor.scss'
+import './ClientMonitor.scss'
 
 type TOrderPlace = 'hall' | 'takeaway'
 
@@ -114,6 +114,7 @@ const ClientMonitor = () => {
 				status: 'new',
 				customer_name: 'Гость',
 				table_number: null,
+				order_type: orderPlace,
 			})
 
 			broadcastOrderCreated(saved)
@@ -141,35 +142,72 @@ const ClientMonitor = () => {
 	}
 
 	return (
-		<div className='monitor-page client-theme client-theme-burritos client-mobile-layout'>
-			<div className='page-header client-page-header'>
-				<div>
+		<div className='client-monitor'>
+			<div className='client-monitor__hero'>
+				<div className='client-monitor__hero-badge'>Premium Order</div>
+
+				<div className='client-monitor__hero-text'>
 					<h1>Оформление заказа</h1>
-					<p>Выберите блюда и добавьте их в корзину</p>
+					<p>Выберите любимые блюда, настройте заказ и отправьте его за пару нажатий.</p>
 				</div>
 			</div>
 
-			<div className='client-logo-banner'></div>
+			<div className='client-toolbar'>
+				<div className='client-toolbar__search'>
+					<input
+						type='text'
+						className='client-search-input'
+						placeholder='Поиск блюда...'
+						value={search}
+						onChange={(e) => setSearch(e.currentTarget.value)}
+					/>
+				</div>
 
-			<div className='client-mobile-search'>
-				<input
-					type='text'
-					className='search-input'
-					placeholder='Поиск блюда...'
-					value={search}
-					onChange={(e) => setSearch(e.currentTarget.value)}
-				/>
+				<div className='client-order-type-box'>
+					<span className='client-order-type-title'>Способ получения</span>
+
+					<div className='client-order-type-switch'>
+						<button
+							type='button'
+							className={
+								orderPlace === 'hall'
+									? 'client-order-type-btn active'
+									: 'client-order-type-btn'
+							}
+							onClick={() => setOrderPlace('hall')}
+						>
+							Здесь
+						</button>
+
+						<button
+							type='button'
+							className={
+								orderPlace === 'takeaway'
+									? 'client-order-type-btn active'
+									: 'client-order-type-btn'
+							}
+							onClick={() => setOrderPlace('takeaway')}
+						>
+							С собой
+						</button>
+					</div>
+
+					<div className='client-order-type-preview'>
+						<span>Текущий выбор</span>
+						<strong>{getOrderPlaceLabel(orderPlace)}</strong>
+					</div>
+				</div>
 			</div>
 
-			<div className='client-mobile-categories'>
+			<div className='client-categories'>
 				{categories.map((category, index) => (
 					<button
 						key={index}
 						onClick={() => setActiveCategory(category)}
 						className={
 							activeCategory === category
-								? 'category-btn active'
-								: 'category-btn'
+								? 'client-category-btn active'
+								: 'client-category-btn'
 						}
 					>
 						{category}
@@ -177,94 +215,87 @@ const ClientMonitor = () => {
 				))}
 			</div>
 
-			<div className='client-desktop-layout'>
-				<div className='client-mobile-foods'>
-					{filteredFoods.map((item: any) => {
-						const cartItem = cart.find((c) => c.id === item.id)
-						const qty = cartItem?.quantity || 0
+			<div className='client-layout'>
+				<section className='client-panel client-menu-panel'>
+					<div className='client-panel__head'>
+						<div>
+							<h3>Меню</h3>
+							<p>
+								{activeCategory === 'Все'
+									? 'Все доступные блюда'
+									: `Категория: ${activeCategory}`}
+							</p>
+						</div>
+					</div>
 
-						return (
-							<div className='client-food-mobile-card' key={item.id}>
-								<div className='client-food-mobile-info'>
-									{item.img && (
-										<img
-											src={item.img}
-											alt={item.title}
-											className='client-food-mobile-image'
-										/>
-									)}
+					<div className='client-food-grid'>
+						{filteredFoods.length === 0 ? (
+							<div className='client-empty-box'>Ничего не найдено</div>
+						) : (
+							filteredFoods.map((item: any) => {
+								const cartItem = cart.find((c) => c.id === item.id)
+								const qty = cartItem?.quantity || 0
 
-									<div className='client-food-mobile-text'>
-										<h4>{item.title}</h4>
-										<p>{formatPrice(item.price)}</p>
+								return (
+									<div className='client-food-card' key={item.id}>
+										<div className='client-food-card__top'>
+											{item.img ? (
+												<img
+													src={item.img}
+													alt={item.title}
+													className='client-food-card__image'
+												/>
+											) : (
+												<div className='client-food-card__image placeholder'>
+													{item.title?.charAt(0)}
+												</div>
+											)}
+
+											<div className='client-food-card__info'>
+												<h4>{item.title}</h4>
+												<p>{formatPrice(item.price)}</p>
+											</div>
+										</div>
+
+										<div className='client-food-card__bottom'>
+											{qty === 0 ? (
+												<button
+													className='client-add-btn'
+													onClick={() => addToCart(item)}
+												>
+													Добавить
+												</button>
+											) : (
+												<div className='client-qty-controls'>
+													<button type='button' onClick={() => removeFromCart(item)}>
+														−
+													</button>
+													<span>{qty}</span>
+													<button type='button' onClick={() => addToCart(item)}>
+														+
+													</button>
+												</div>
+											)}
+										</div>
 									</div>
-								</div>
+								)
+							})
+						)}
+					</div>
+				</section>
 
-								{qty === 0 ? (
-									<button
-										className='client-add-btn'
-										onClick={() => addToCart(item)}
-									>
-										Добавить
-									</button>
-								) : (
-									<div className='qty-controls client-qty-controls'>
-										<button onClick={() => removeFromCart(item)}>-</button>
-										<span>{qty}</span>
-										<button onClick={() => addToCart(item)}>+</button>
-									</div>
-								)}
-							</div>
-						)
-					})}
-				</div>
-
-				<div className='panel order-panel client-mobile-cart'>
-					<div className='panel-heading'>
+				<aside className='client-panel client-cart-panel'>
+					<div className='client-panel__head'>
 						<h3>Корзина</h3>
 					</div>
 
-					<div className='client-order-type-box'>
-						<span className='client-order-type-title'>Способ получения</span>
-
-						<div className='client-order-type-switch'>
-							<button
-								type='button'
-								className={
-									orderPlace === 'hall'
-										? 'client-order-type-btn active'
-										: 'client-order-type-btn'
-								}
-								onClick={() => setOrderPlace('hall')}
-							>
-								Здесь
-							</button>
-
-							<button
-								type='button'
-								className={
-									orderPlace === 'takeaway'
-										? 'client-order-type-btn active'
-										: 'client-order-type-btn'
-								}
-								onClick={() => setOrderPlace('takeaway')}
-							>
-								С собой
-							</button>
-						</div>
-
-						<div className='client-order-type-preview'>
-							Текущий выбор: <strong>{getOrderPlaceLabel(orderPlace)}</strong>
-						</div>
-					</div>
-
-					<div className='cart-list'>
+					<div className='client-cart-list'>
 						{cart.length === 0 ? (
-							<div className='empty-box'>Корзина пуста</div>
+							<div className='client-empty-box'>Корзина пуста</div>
 						) : (
 							cart.map((item) => (
-								<div className='cart-item' key={item.id}>
-									<div className='cart-item__top'>
+								<div className='client-cart-item' key={item.id}>
+									<div className='client-cart-item__top'>
 										<div>
 											<h4>{item.title}</h4>
 											<p>{formatPrice(item.price)}</p>
@@ -275,33 +306,33 @@ const ClientMonitor = () => {
 										</strong>
 									</div>
 
-									<div className='qty-controls'>
-										<button onClick={() => removeFromCart(item)}>-</button>
+									<div className='client-qty-controls compact'>
+										<button type='button' onClick={() => removeFromCart(item)}>
+											−
+										</button>
 										<span>{item.quantity}</span>
-										<button onClick={() => addToCart(item)}>+</button>
+										<button type='button' onClick={() => addToCart(item)}>
+											+
+										</button>
 									</div>
 								</div>
 							))
 						)}
 					</div>
 
-					<div className='order-summary'>
-						<div className='summary-row'>
+					<div className='client-order-summary'>
+						<div className='client-summary-row'>
 							<span>Позиций</span>
 							<strong>{totalItems}</strong>
 						</div>
 
-						<div className='summary-total'>
+						<div className='client-summary-total'>
 							<span>Итого</span>
 							<h2>{formatPrice(totalSum)}</h2>
 						</div>
 
-						<div className='client-logo-small'>
-							<img src='/logo.png' alt='Логотип' />
-						</div>
-
 						<textarea
-							className='order-comment-input'
+							className='client-comment-input'
 							placeholder='Комментарий к заказу: без лука, соус отдельно, не острое...'
 							value={comment}
 							onChange={(e) => setComment(e.currentTarget.value)}
@@ -309,22 +340,23 @@ const ClientMonitor = () => {
 						/>
 
 						<button
-							className='primary-btn client-submit-btn'
+							className='client-submit-btn'
 							onClick={handleCreateOrder}
 							disabled={!cart.length || submitting}
 						>
 							{submitting ? 'Оформление...' : 'Оформить заказ'}
 						</button>
 					</div>
-				</div>
+				</aside>
 			</div>
 
 			{showSuccess && (
 				<div className='client-success-overlay'>
-					<div className='client-success-card burritos-success-card'>
+					<div className='client-success-card'>
 						{!showNextOrder ? (
 							<>
-								<h1>Ваш заказ оформлен!</h1>
+								<div className='client-success-card__icon'>✓</div>
+								<h1>Ваш заказ оформлен</h1>
 								<p>Номер вашего заказа</p>
 
 								<div className='success-number'>{lastOrderNumber}</div>
@@ -339,7 +371,8 @@ const ClientMonitor = () => {
 							</>
 						) : (
 							<>
-								<h1>Спасибо за заказ!</h1>
+								<div className='client-success-card__icon'>♥</div>
+								<h1>Спасибо за заказ</h1>
 								<p className='wait-text'>Приятного аппетита!</p>
 							</>
 						)}
