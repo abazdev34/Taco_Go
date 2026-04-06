@@ -1,14 +1,44 @@
-import { useEffect, useMemo, useState } from 'react'
-import '../Navbar/monitor.scss'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import './HallMonitor.scss'
 import { useOrders } from '../../hooks/useOrders'
 
+type OrderStatus = 'new' | 'preparing' | 'ready' | string
+
+type Order = {
+	id: number
+	order_number: number
+	status: OrderStatus
+	created_at: string
+}
+
 const HallMonitor = () => {
-	const { orders, loading, error } = useOrders()
-	const [clock, setClock] = useState(new Date())
+	const { orders, loading, error } = useOrders() as {
+		orders: Order[]
+		loading: boolean
+		error: string | null
+	}
+
+	const [highlightedIds, setHighlightedIds] = useState<number[]>([])
+	const prevReadyIdsRef = useRef<number[]>([])
+	const audioUnlockedRef = useRef(false)
 
 	useEffect(() => {
-		const timer = setInterval(() => setClock(new Date()), 1000)
-		return () => clearInterval(timer)
+		const unlockAudio = () => {
+			audioUnlockedRef.current = true
+			window.removeEventListener('click', unlockAudio)
+			window.removeEventListener('touchstart', unlockAudio)
+			window.removeEventListener('keydown', unlockAudio)
+		}
+
+		window.addEventListener('click', unlockAudio)
+		window.addEventListener('touchstart', unlockAudio)
+		window.addEventListener('keydown', unlockAudio)
+
+		return () => {
+			window.removeEventListener('click', unlockAudio)
+			window.removeEventListener('touchstart', unlockAudio)
+			window.removeEventListener('keydown', unlockAudio)
+		}
 	}, [])
 
 	const readyOrders = useMemo(() => {
@@ -25,146 +55,160 @@ const HallMonitor = () => {
 			.sort((a, b) => b.order_number - a.order_number)
 	}, [orders])
 
-	const getStatusText = (status: string) => {
-		switch (status) {
-			case 'new':
-				return 'Новый'
-			case 'preparing':
-				return 'Готовится'
-			case 'ready':
-				return 'Готов'
-			default:
-				return 'Неизвестно'
+	useEffect(() => {
+		const currentReadyIds = readyOrders.map((order) => order.id)
+		const newReadyIds = currentReadyIds.filter(
+			(id) => !prevReadyIdsRef.current.includes(id)
+		)
+
+		if (newReadyIds.length > 0) {
+			setHighlightedIds((prev) => [...prev, ...newReadyIds])
+			playReadySound()
+
+			const timeout = window.setTimeout(() => {
+				setHighlightedIds((prev) =>
+					prev.filter((id) => !newReadyIds.includes(id))
+				)
+			}, 2800)
+
+			prevReadyIdsRef.current = currentReadyIds
+
+			return () => window.clearTimeout(timeout)
+		}
+
+		prevReadyIdsRef.current = currentReadyIds
+	}, [readyOrders])
+
+	const playReadySound = () => {
+		try {
+			const AudioContextClass =
+				window.AudioContext ||
+				(window as Window & {
+					webkitAudioContext?: typeof AudioContext
+				}).webkitAudioContext
+
+			if (!AudioContextClass) return
+			if (!audioUnlockedRef.current) return
+
+			const audioCtx = new AudioContextClass()
+			const oscillator = audioCtx.createOscillator()
+			const gainNode = audioCtx.createGain()
+
+			oscillator.type = 'sine'
+			oscillator.frequency.setValueAtTime(880, audioCtx.currentTime)
+			oscillator.frequency.linearRampToValueAtTime(
+				1046,
+				audioCtx.currentTime + 0.16
+			)
+			oscillator.frequency.linearRampToValueAtTime(
+				1318,
+				audioCtx.currentTime + 0.32
+			)
+
+			gainNode.gain.setValueAtTime(0.0001, audioCtx.currentTime)
+			gainNode.gain.exponentialRampToValueAtTime(
+				0.1,
+				audioCtx.currentTime + 0.02
+			)
+			gainNode.gain.exponentialRampToValueAtTime(
+				0.0001,
+				audioCtx.currentTime + 0.5
+			)
+
+			oscillator.connect(gainNode)
+			gainNode.connect(audioCtx.destination)
+
+			oscillator.start()
+			oscillator.stop(audioCtx.currentTime + 0.55)
+
+			oscillator.onended = () => {
+				void audioCtx.close()
+			}
+		} catch (soundError) {
+			console.error('Sound playback error:', soundError)
 		}
 	}
 
-	const getSourceText = (source?: string) => {
-		switch (source) {
-			case 'client':
-				return 'Клиент'
-			case 'cashier':
-				return 'Кассир'
-			default:
-				return 'Система'
-		}
-	}
+	const preparingLoopedOrders =
+		preparingOrders.length > 10
+			? [...preparingOrders, ...preparingOrders]
+			: preparingOrders
+
+	const readyLoopedOrders =
+		readyOrders.length > 10 ? [...readyOrders, ...readyOrders] : readyOrders
 
 	return (
-		<div className='monitor-page hall-theme'>
-			
+		<div className='hall-clean-tv'>
+			{error && <div className='hall-clean-tv__error'>{error}</div>}
 
-			<div className='page-header hall-header'>
-				<div>
-					<h1>Монитор зала</h1>
-					<p>Здесь отображаются готовые и готовящиеся заказы</p>
-				</div>
-
-				<div className='top-info-card hall-clock-card'>
-					<span>Текущее время</span>
-					<strong>
-						{clock.toLocaleTimeString([], {
-							hour: '2-digit',
-							minute: '2-digit',
-							second: '2-digit',
-						})}
-					</strong>
-				</div>
-			</div>
-
-			{error && <div className='error-box'>{error}</div>}
-
-			<div className='hall-stats-grid'>
-				<div className='stat-box accent'>
-					<span>Готовые заказы</span>
-					<h2>{readyOrders.length}</h2>
-				</div>
-
-				<div className='stat-box'>
-					<span>Готовятся</span>
-					<h2>{preparingOrders.length}</h2>
-				</div>
-
-				<div className='stat-box'>
-					<span>Всего активных</span>
-					<h2>{orders.length}</h2>
-				</div>
-			</div>
-
-			<div className='hall-tv-layout'>
-				<section className='panel hall-ready-panel'>
-					<div className='panel-heading'>
-						<h3>Готовые заказы</h3>
+			<div className='hall-clean-tv__layout'>
+				<section className='clean-column clean-column--preparing'>
+					<div className='clean-column__head'>
+						<h2>Готовится</h2>
+						<span>{preparingOrders.length}</span>
 					</div>
 
-					{loading ? (
-						<div className='empty-box hall-empty'>Загрузка...</div>
-					) : readyOrders.length === 0 ? (
-						<div className='empty-box hall-empty'>
-							Пока нет готовых заказов
-						</div>
-					) : (
-						<div className='hall-ready-grid'>
-							{readyOrders.map((order) => (
-								<div className='hall-order-card ready' key={order.id}>
-									<div className='hall-order-top'>
-										<span className='hall-order-number'>
-											№{order.order_number}
-										</span>
-
-										<span className='status-badge ready'>
-											{getStatusText(order.status)}
-										</span>
-									</div>
-
-									<div className='hall-order-meta'>
-										<p>
-											<strong>Источник:</strong> {getSourceText(order.source)}
-										</p>
-										<p>
-											<strong>Время:</strong>{' '}
-											{new Date(order.created_at).toLocaleTimeString()}
-										</p>
-									</div>
-
-									{order.comment && (
-										<div className='hall-comment-box'>
-											<strong>Комментарий:</strong> {order.comment}
+					<div className='clean-column__body'>
+						{loading ? (
+							<div className='clean-empty'>Загрузка...</div>
+						) : preparingOrders.length === 0 ? (
+							<div className='clean-empty'>—</div>
+						) : (
+							<div
+								className={`clean-scroll ${
+									preparingOrders.length > 10 ? 'clean-scroll--animated' : ''
+								}`}
+							>
+								<div className='clean-grid'>
+									{preparingLoopedOrders.map((order, index) => (
+										<div
+											className='clean-number clean-number--preparing'
+											key={`preparing-${order.id}-${index}`}
+										>
+											{order.order_number}
 										</div>
-									)}
+									))}
 								</div>
-							))}
-						</div>
-					)}
+							</div>
+						)}
+					</div>
 				</section>
 
-				<aside className='panel hall-progress-panel'>
-					<div className='panel-heading'>
-						<h3>Заказы в работе</h3>
+				<section className='clean-column clean-column--ready'>
+					<div className='clean-column__head'>
+						<h2>Готов</h2>
+						<span>{readyOrders.length}</span>
 					</div>
 
-					{loading ? (
-						<div className='empty-box small'>Загрузка...</div>
-					) : preparingOrders.length === 0 ? (
-						<div className='empty-box small'>Нет заказов в работе</div>
-					) : (
-						<div className='hall-progress-list'>
-							{preparingOrders.map((order) => (
-								<div className='hall-progress-item' key={order.id}>
-									<div>
-										<h4>Заказ №{order.order_number}</h4>
-										<p>{getStatusText(order.status)}</p>
-									</div>
-
-									<div className='hall-progress-right'>
-										<span className={`status-badge ${order.status}`}>
-											{getStatusText(order.status)}
-										</span>
-									</div>
+					<div className='clean-column__body'>
+						{loading ? (
+							<div className='clean-empty'>Загрузка...</div>
+						) : readyOrders.length === 0 ? (
+							<div className='clean-empty'>—</div>
+						) : (
+							<div
+								className={`clean-scroll ${
+									readyOrders.length > 10 ? 'clean-scroll--animated' : ''
+								}`}
+							>
+								<div className='clean-grid'>
+									{readyLoopedOrders.map((order, index) => (
+										<div
+											className={`clean-number clean-number--ready ${
+												highlightedIds.includes(order.id)
+													? 'clean-number--pop'
+													: ''
+											}`}
+											key={`ready-${order.id}-${index}`}
+										>
+											{order.order_number}
+										</div>
+									))}
 								</div>
-							))}
-						</div>
-					)}
-				</aside>
+							</div>
+						)}
+					</div>
+				</section>
 			</div>
 		</div>
 	)

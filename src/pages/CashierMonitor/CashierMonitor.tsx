@@ -6,9 +6,16 @@ import {
   broadcastOrderCreated,
   broadcastOrderUpdated,
 } from "../../lib/orderSync"
-import { IMenuItem } from "../../types/order"
-import { formatPrice } from "../../utils/currency"
-import "../Navbar/monitor.scss"
+import type { IMenuItem } from "../../types/order"
+import "./CashierMonitor.scss"
+
+type OrderUi = {
+  id: string
+  status: string
+  order_number: number | string
+  created_at?: string
+  comment?: string
+}
 
 const CashierMonitor = () => {
   const [cart, setCart] = useState<IMenuItem[]>([])
@@ -19,7 +26,7 @@ const CashierMonitor = () => {
   const [submitting, setSubmitting] = useState(false)
   const [busyOrderId, setBusyOrderId] = useState("")
 
-  const { orders, history, loading, error } = useOrders()
+  const { orders, error } = useOrders()
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000)
@@ -56,12 +63,17 @@ const CashierMonitor = () => {
     return data
   }, [allFoods, activeCategory, search])
 
+  const activeOrders = useMemo(
+    () => ((orders || []) as OrderUi[]).filter((order) => order.status !== "completed"),
+    [orders]
+  )
+
+  const totalItems = cart.reduce((acc, item) => acc + (item.quantity || 1), 0)
+
   const totalSum = cart.reduce(
     (acc, item) => acc + item.price * (item.quantity || 1),
     0
   )
-
-  const totalItems = cart.reduce((acc, item) => acc + (item.quantity || 1), 0)
 
   const addToCart = (item: IMenuItem) => {
     setCart((prev) => {
@@ -133,229 +145,261 @@ const CashierMonitor = () => {
     }
   }
 
-  const getStatusText = (status: string) => {
+  const getTopButtonText = (status: string) => {
     switch (status) {
       case "new":
         return "Новый"
       case "preparing":
         return "Готовится"
       case "ready":
-        return "Готов к выдаче"
-      case "completed":
-        return "Выдан"
+        return "Выдать"
       default:
-        return "Неизвестно"
+        return "Новый"
     }
   }
 
+  const getOrderAgeMinutes = (createdAt?: string) => {
+    if (!createdAt) return 0
+
+    const created = new Date(createdAt).getTime()
+    const now = clock.getTime()
+
+    if (Number.isNaN(created)) return 0
+
+    const diffMs = now - created
+    const diffMin = Math.floor(diffMs / 60000)
+
+    return diffMin < 0 ? 0 : diffMin
+  }
+
+  const getTopButtonClass = (order: OrderUi) => {
+    if (order.status === "ready") return "is-ready"
+    if (order.status === "preparing") return "is-preparing"
+
+    const minutes = getOrderAgeMinutes(order.created_at)
+
+    if (minutes >= 10) return "is-danger"
+    if (minutes >= 5) return "is-warning"
+    return "is-new"
+  }
+
+  const getTopButtonLabel = (order: OrderUi) => {
+    const minutes = getOrderAgeMinutes(order.created_at)
+    const baseText = getTopButtonText(order.status)
+
+    if (busyOrderId === order.id) return "..."
+
+    return `${baseText} · ${minutes} мин`
+  }
+
   return (
-    <div className="monitor-page cashier-theme">
-      <div className="page-header">
-        <div>
-          <h1>Рабочее место кассира</h1>
-          <p>Прием заказов и выдача готовых заказов</p>
+    <div className="cashier-monitor-page">
+      <div className="cashier-shell">
+        <div className="cashier-topbar">
+          <div className="cashier-clock-mini">
+            <span>Время</span>
+            <strong>
+              {clock.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </strong>
+          </div>
         </div>
 
-        <div className="top-info-card">
-          <span>Текущее время</span>
-          <strong>
-            {clock.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
-          </strong>
-        </div>
-      </div>
+        {error && <div className="cashier-error-box">{error}</div>}
 
-      <div className="stats-grid">
-        <div className="stat-box">
-          <span>Активные заказы</span>
-          <h2>{orders.length}</h2>
-        </div>
-
-        <div className="stat-box">
-          <span>Позиций в корзине</span>
-          <h2>{totalItems}</h2>
-        </div>
-
-        <div className="stat-box">
-          <span>Закрытые заказы</span>
-          <h2>{history.length}</h2>
-        </div>
-
-        <div className="stat-box accent">
-          <span>Сумма корзины</span>
-          <h2>{formatPrice(totalSum)}</h2>
-        </div>
-      </div>
-
-      {error && <div className="error-box">{error}</div>}
-
-      <div className="cashier-layout cashier-layout-custom">
-        <aside className="panel right-category-panel">
-          <div className="panel-heading">
-            <h3>Категории</h3>
+        <div className="cashier-order-numbers-bar">
+          <div className="cashier-order-numbers-bar__head">
+            <h3>Заказы</h3>
+            <span>{activeOrders.length} активных</span>
           </div>
 
-          <div className="category-list">
-            {categories.map((category, index) => (
-              <button
-                key={index}
-                onClick={() => setActiveCategory(category)}
-                className={
-                  activeCategory === category
-                    ? "category-btn active"
-                    : "category-btn"
-                }
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </aside>
+          <div className="cashier-order-numbers-scroll">
+            {activeOrders.length === 0 ? (
+              <div className="cashier-empty-box small">
+                Активных заказов нет
+              </div>
+            ) : (
+              activeOrders.map((order) => (
+                <div key={order.id} className="cashier-order-chip">
+                  <strong className="cashier-order-chip__number">
+                    {order.order_number}
+                  </strong>
 
-        <section className="panel menu-panel simple-menu-panel">
-          <div className="panel-toolbar">
-            <div>
-              <h3>Блюда</h3>
-              <p>Нажмите на блюдо, чтобы добавить в заказ</p>
+                  <button
+                    type="button"
+                    className={`cashier-order-chip__single-btn ${getTopButtonClass(
+                      order
+                    )}`}
+                    disabled={order.status !== "ready" || busyOrderId === order.id}
+                    onClick={() =>
+                      order.status === "ready"
+                        ? handleComplete(order.id)
+                        : undefined
+                    }
+                  >
+                    {getTopButtonLabel(order)}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="cashier-top-actions">
+          <button
+            className="cashier-top-action-btn"
+            type="button"
+            onClick={() => setActiveCategory("Все")}
+          >
+            Все блюда
+          </button>
+
+          <button
+            className="cashier-top-action-btn"
+            type="button"
+            onClick={clearCart}
+          >
+            Очистить корзину
+          </button>
+        </div>
+
+        <div className="cashier-layout">
+          <aside className="cashier-panel cashier-category-panel">
+            <div className="cashier-panel-heading">
+              <h3>Категории</h3>
             </div>
 
-            <div className="cashier-menu-top">
-              <div className="cashier-menu-total">
-                <span>Сумма</span>
-                <strong>{formatPrice(totalSum)}</strong>
+            <div className="cashier-category-list">
+              {categories.map((category, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setActiveCategory(category)}
+                  className={
+                    activeCategory === category
+                      ? "cashier-category-btn active"
+                      : "cashier-category-btn"
+                  }
+                >
+                  <span className="dot" />
+                  {category}
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <section className="cashier-panel cashier-menu-panel">
+            <div className="cashier-panel-toolbar">
+              <div>
+                <h3>Меню</h3>
+                <p>
+                  {activeCategory === "Все"
+                    ? "Все блюда"
+                    : `Категория: ${activeCategory}`}
+                </p>
               </div>
 
               <input
                 type="text"
-                className="search-input"
+                className="cashier-search-input"
                 placeholder="Поиск блюда..."
                 value={search}
                 onChange={(e) => setSearch(e.currentTarget.value)}
               />
             </div>
-          </div>
 
-          <div className="simple-foods-grid simple-foods-grid-names">
-            {filteredFoods.map((item: any) => (
-              <button
-                type="button"
-                className="food-name-btn"
-                key={item.id}
-                onClick={() => addToCart(item)}
-              >
-                <span>{item.title}</span>
-                <strong>{formatPrice(item.price)}</strong>
-              </button>
-            ))}
-          </div>
-        </section>
+            <div className="cashier-foods-grid">
+              {filteredFoods.length === 0 ? (
+                <div className="cashier-empty-box">Ничего не найдено</div>
+              ) : (
+                filteredFoods.map((item: any) => (
+                  <button
+                    type="button"
+                    className="cashier-food-btn"
+                    key={item.id}
+                    onClick={() => addToCart(item)}
+                  >
+                    <div className="cashier-food-btn__body">
+                      <span>{item.title}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </section>
 
-        <aside className="panel order-panel">
-          <div className="panel-heading">
-            <h3>Корзина</h3>
-          </div>
+          <aside className="cashier-panel cashier-cart-panel">
+            <div className="cashier-panel-heading">
+              <h3>Корзина</h3>
+            </div>
 
-          <div className="cart-list">
-            {cart.length === 0 ? (
-              <div className="empty-box">Корзина пуста</div>
-            ) : (
-              cart.map((item) => (
-                <div className="cart-item" key={item.id}>
-                  <div className="cart-item__top">
-                    <div>
-                      <h4>{item.title}</h4>
-                      <p>{formatPrice(item.price)}</p>
+            <div className="cashier-cart-list">
+              {cart.length === 0 ? (
+                <div className="cashier-empty-box">Корзина пуста</div>
+              ) : (
+                cart.map((item) => (
+                  <div className="cashier-cart-item" key={item.id}>
+                    <div className="cashier-cart-item-top">
+                      <div>
+                        <h4>{item.title}</h4>
+                        <p>{item.price} c</p>
+                      </div>
+                      <strong>{item.price * (item.quantity || 1)} c</strong>
                     </div>
 
-                    <strong>
-                      {formatPrice(item.price * (item.quantity || 1))}
-                    </strong>
-                  </div>
-
-                  <div className="qty-controls">
-                    <button onClick={() => removeFromCart(item)}>-</button>
-                    <span>{item.quantity}</span>
-                    <button onClick={() => addToCart(item)}>+</button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="order-summary">
-            <div className="summary-row">
-              <span>Позиций</span>
-              <strong>{totalItems}</strong>
-            </div>
-
-            <div className="summary-total">
-              <span>Итого</span>
-              <h2>{formatPrice(totalSum)}</h2>
-            </div>
-
-            <textarea
-              className="order-comment-input"
-              placeholder="Комментарий к заказу..."
-              value={comment}
-              onChange={(e) => setComment(e.currentTarget.value)}
-              rows={4}
-            />
-
-            <button
-              className="primary-btn"
-              onClick={handleCreateOrder}
-              disabled={!cart.length || submitting}
-            >
-              {submitting ? "Сохранение..." : "Принять заказ"}
-            </button>
-          </div>
-
-          <div className="accepted-orders">
-            <div className="panel-heading">
-              <h3>Принятые заказы</h3>
-            </div>
-
-            {loading ? (
-              <div className="empty-box small">Загрузка...</div>
-            ) : orders.length === 0 ? (
-              <div className="empty-box small">Активных заказов нет</div>
-            ) : (
-              orders.map((order: any) => (
-                <div className="accepted-order-item" key={order.id}>
-                  <div>
-                    <h4>Заказ №{order.order_number}</h4>
-                    <p>{new Date(order.created_at).toLocaleTimeString()}</p>
-
-                    {order.comment && (
-                      <div className="order-comment-preview">
-                        Комментарий: {order.comment}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="accepted-order-actions">
-                    <span className={`status-badge ${order.status}`}>
-                      {getStatusText(order.status)}
-                    </span>
-
-                    {order.status === "ready" && (
-                      <button
-                        className="issue-btn"
-                        disabled={busyOrderId === order.id}
-                        onClick={() => handleComplete(order.id)}
-                      >
-                        {busyOrderId === order.id ? "..." : "Выдан"}
+                    <div className="cashier-qty-controls">
+                      <button type="button" onClick={() => removeFromCart(item)}>
+                        -
                       </button>
-                    )}
+                      <span>{item.quantity}</span>
+                      <button type="button" onClick={() => addToCart(item)}>
+                        +
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        </aside>
+                ))
+              )}
+            </div>
+
+            <div className="cashier-order-summary">
+              <div className="cashier-summary-row">
+                <span>Позиций</span>
+                <strong>{totalItems}</strong>
+              </div>
+
+              <div className="cashier-summary-row total">
+                <span>Итого</span>
+                <strong>{totalSum} c</strong>
+              </div>
+
+              <div className="cashier-order-preview">
+                <span className="cashier-order-preview__label">Новый заказ</span>
+                <strong className="cashier-order-preview__value">
+                  {cart.length > 0 ? activeOrders.length + 1 : "--"}
+                </strong>
+              </div>
+
+              <textarea
+                className="cashier-comment-input"
+                placeholder="Комментарий к заказу..."
+                value={comment}
+                onChange={(e) => setComment(e.currentTarget.value)}
+                rows={3}
+              />
+
+              <button
+                className="cashier-primary-btn"
+                onClick={handleCreateOrder}
+                disabled={!cart.length || submitting}
+              >
+                {submitting ? "Сохранение..." : "Принять заказ"}
+              </button>
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   )
