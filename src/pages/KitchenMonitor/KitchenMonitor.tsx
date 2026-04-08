@@ -1,268 +1,309 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { useOrders } from '../../hooks/useOrders'
-import { updateOrderStatus } from '../../api/orders'
+import { updateOrderWorkflow } from '../../api/orders'
 import '../Navbar/monitor.scss'
-import { playNewOrderSound } from '../../utils/sound'
-import { IOrderRow } from '../../types/order'
+import { IMenuItem, IOrderRow } from '../../types/order'
 
 const KitchenMonitor = () => {
-	const { orders, loading, error } = useOrders()
-	const prevOrdersRef = useRef<IOrderRow[]>([])
+  const { orders = [], loading, error } = useOrders()
 
-	useEffect(() => {
-		if (!orders.length) {
-			prevOrdersRef.current = orders
-			return
-		}
+  const kitchenRelevantOrders = useMemo(() => {
+    return (orders || [])
+      .filter((order) => {
+        const items = Array.isArray(order.items) ? order.items : []
 
-		const prev = prevOrdersRef.current
+        const hasKitchen = items.some(
+          (item) => item.categories?.type !== 'assembly'
+        )
 
-		const incomingNewOrders = orders.filter(
-			(order) =>
-				order.status === 'new' &&
-				!prev.some((prevOrder) => prevOrder.id === order.id)
-		)
+        if (!hasKitchen) return false
 
-		if (incomingNewOrders.length > 0) {
-			playNewOrderSound()
-		}
+        return (
+          order.kitchen_status === 'new' ||
+          order.kitchen_status === 'preparing' ||
+          order.kitchen_status === 'ready'
+        )
+      })
+      .sort((a, b) => {
+        const priorityMap: Record<string, number> = {
+          new: 3,
+          preparing: 2,
+          ready: 1,
+        }
 
-		prevOrdersRef.current = orders
-	}, [orders])
+        const aPriority = priorityMap[a.kitchen_status || ''] || 0
+        const bPriority = priorityMap[b.kitchen_status || ''] || 0
 
-	const newOrders = useMemo(() => {
-		return orders
-			.filter((order) => order.status === 'new')
-			.sort((a, b) => b.order_number - a.order_number)
-	}, [orders])
+        if (aPriority !== bPriority) {
+          return bPriority - aPriority
+        }
 
-	const preparingOrders = useMemo(() => {
-		return orders
-			.filter((order) => order.status === 'preparing')
-			.sort((a, b) => b.order_number - a.order_number)
-	}, [orders])
+        return Number(b.order_number) - Number(a.order_number)
+      })
+  }, [orders])
 
-	const readyOrders = useMemo(() => {
-		return orders
-			.filter((order) => order.status === 'ready')
-			.sort((a, b) => b.order_number - a.order_number)
-	}, [orders])
+  const newOrders = useMemo(
+    () => kitchenRelevantOrders.filter((order) => order.kitchen_status === 'new'),
+    [kitchenRelevantOrders]
+  )
 
-	const getSourceText = (source?: string) => {
-		switch (source) {
-			case 'client':
-				return 'Клиент'
-			case 'cashier':
-				return 'Кассир'
-			default:
-				return 'Неизвестно'
-		}
-	}
+  const preparingOrders = useMemo(
+    () =>
+      kitchenRelevantOrders.filter(
+        (order) => order.kitchen_status === 'preparing'
+      ),
+    [kitchenRelevantOrders]
+  )
 
-	const handleStartCooking = async (id: string) => {
-		try {
-			await updateOrderStatus(id, 'preparing')
-		} catch (error) {
-			console.error('Ошибка перевода заказа в статус preparing:', error)
-			alert('Не удалось принять заказ в работу')
-		}
-	}
+  const readyOrders = useMemo(
+    () => kitchenRelevantOrders.filter((order) => order.kitchen_status === 'ready'),
+    [kitchenRelevantOrders]
+  )
 
-	const handleReady = async (id: string) => {
-		try {
-			await updateOrderStatus(id, 'ready')
-		} catch (error) {
-			console.error('Ошибка перевода заказа в статус ready:', error)
-			alert('Не удалось отметить заказ как готовый')
-		}
-	}
+  const getKitchenItems = (order: IOrderRow): IMenuItem[] => {
+    return (order.items || []).filter(
+      (item) => item.categories?.type !== 'assembly'
+    )
+  }
 
-	return (
-		<div className='monitor-page kitchen-theme'>
-			
+  const getAssemblyItems = (order: IOrderRow): IMenuItem[] => {
+    return (order.items || []).filter(
+      (item) => item.categories?.type === 'assembly'
+    )
+  }
 
-			<div className='page-header'>
-				<div>
-					<h1>Монитор кухни</h1>
-					<p>Новые, готовящиеся и готовые заказы</p>
-				</div>
-			</div>
+  const formatOrderTime = (createdAt?: string) => {
+    if (!createdAt) return '--:--'
 
-			{error && <div className='error-box'>{error}</div>}
+    const date = new Date(createdAt)
+    if (Number.isNaN(date.getTime())) return '--:--'
 
-			<div className='kitchen-columns'>
-				<div className='kitchen-column'>
-					<div className='column-title'>
-						<h3>Новые</h3>
-						<span>{newOrders.length}</span>
-					</div>
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
 
-					<div className='orders-stack'>
-						{loading ? (
-							<div className='empty-box'>Загрузка...</div>
-						) : newOrders.length === 0 ? (
-							<div className='empty-box'>Нет новых заказов</div>
-						) : (
-							newOrders.map((order) => (
-								<div className='order-card new-card' key={order.id}>
-									<div className='order-card__header'>
-										<h2>Заказ №{order.order_number}</h2>
-										<span className='status-badge new'>Новый</span>
-									</div>
+  const getKitchenStatusLabel = (order: IOrderRow) => {
+    if (order.kitchen_status === 'ready') return 'Готово'
+    if (order.kitchen_status === 'preparing') return 'Готовится'
+    return 'Ожидает принятия'
+  }
 
-									<div className='order-meta'>
-										<p>
-											<strong>Время:</strong>{' '}
-											{new Date(order.created_at).toLocaleTimeString()}
-										</p>
-										<p>
-											<strong>Источник:</strong> {getSourceText(order.source)}
-										</p>
-									</div>
+  const getAssemblyFlowLabel = (order: IOrderRow) => {
+    const hasAssembly = getAssemblyItems(order).length > 0
 
-									<div className='order-items'>
-										{order.items.map((item, index) => (
-											<div
-												key={`${order.id}-${item.id}-${index}`}
-												className='order-item-line'
-											>
-												<span>{item.title}</span>
-												<strong>x{item.quantity || 1}</strong>
-											</div>
-										))}
-									</div>
+    if (!hasAssembly) return 'Сборка не требуется'
+    if (order.kitchen_status === 'ready') return 'Передано в сборку'
+    if (order.kitchen_status === 'preparing') return 'Заказ виден в сборке'
+    return 'Появится после принятия'
+  }
 
-									{order.comment && (
-										<div className='kitchen-comment-box'>
-											💬 {order.comment}
-										</div>
-									)}
+  const handleKitchenStart = async (order: IOrderRow) => {
+    try {
+      const hasAssembly = getAssemblyItems(order).length > 0
 
-									<button
-										className='primary-btn'
-										onClick={() => handleStartCooking(order.id)}
-									>
-										Принять в работу
-									</button>
-								</div>
-							))
-						)}
-					</div>
-				</div>
+      await updateOrderWorkflow(order.id, {
+        kitchen_status: 'preparing',
+        assembly_status: hasAssembly ? 'new' : 'skipped',
+        status: 'preparing',
+      })
+    } catch (err) {
+      console.error('Ошибка принятия кухни:', err)
+      alert('Не удалось принять заказ')
+    }
+  }
 
-				<div className='kitchen-column'>
-					<div className='column-title'>
-						<h3>Готовятся</h3>
-						<span>{preparingOrders.length}</span>
-					</div>
+  const handleKitchenReady = async (order: IOrderRow) => {
+    try {
+      const hasAssembly = getAssemblyItems(order).length > 0
 
-					<div className='orders-stack'>
-						{loading ? (
-							<div className='empty-box'>Загрузка...</div>
-						) : preparingOrders.length === 0 ? (
-							<div className='empty-box'>Нет заказов в работе</div>
-						) : (
-							preparingOrders.map((order) => (
-								<div className='order-card cooking-card' key={order.id}>
-									<div className='order-card__header'>
-										<h2>Заказ №{order.order_number}</h2>
-										<span className='status-badge preparing'>Готовится</span>
-									</div>
+      await updateOrderWorkflow(order.id, {
+        kitchen_status: 'ready',
+        assembly_status: hasAssembly
+          ? order.assembly_status === 'ready'
+            ? 'ready'
+            : 'new'
+          : 'skipped',
+        status: hasAssembly
+          ? order.assembly_status === 'ready'
+            ? 'ready'
+            : 'preparing'
+          : 'ready',
+      })
+    } catch (err) {
+      console.error('Ошибка завершения кухни:', err)
+      alert('Не удалось отметить кухню как готовую')
+    }
+  }
 
-									<div className='order-meta'>
-										<p>
-											<strong>Время:</strong>{' '}
-											{new Date(order.created_at).toLocaleTimeString()}
-										</p>
-										<p>
-											<strong>Источник:</strong> {getSourceText(order.source)}
-										</p>
-									</div>
+  const renderOrderCard = (order: IOrderRow) => {
+    const kitchenItems = getKitchenItems(order)
+    const hasAssembly = getAssemblyItems(order).length > 0
 
-									<div className='order-items'>
-										{order.items.map((item, index) => (
-											<div
-												key={`${order.id}-${item.id}-${index}`}
-												className='order-item-line'
-											>
-												<span>{item.title}</span>
-												<strong>x{item.quantity || 1}</strong>
-											</div>
-										))}
-									</div>
+    const isNewKitchenOrder = order.kitchen_status === 'new'
+    const isPreparingKitchenOrder = order.kitchen_status === 'preparing'
+    const isReadyKitchenOrder = order.kitchen_status === 'ready'
 
-									{order.comment && (
-										<div className='kitchen-comment-box'>
-											💬 {order.comment}
-										</div>
-									)}
+    return (
+      <div
+        className={`order-card kitchen-card ${
+          isNewKitchenOrder ? 'order-card--new-attention' : ''
+        } ${isPreparingKitchenOrder ? 'order-card--preparing' : ''} ${
+          isReadyKitchenOrder ? 'order-card--ready' : ''
+        }`}
+        key={order.id}
+      >
+        <div className='order-card__header'>
+          <div>
+            <h2>Заказ №{order.order_number}</h2>
+            <p className='order-card__time'>
+              Время: {formatOrderTime(order.created_at)}
+            </p>
+          </div>
 
-									<button
-										className='success-btn'
-										onClick={() => handleReady(order.id)}
-									>
-										Готово
-									</button>
-								</div>
-							))
-						)}
-					</div>
-				</div>
+          <div className='badge-row'>
+            {isNewKitchenOrder && (
+              <span className='status-badge new'>Новый</span>
+            )}
+            {isPreparingKitchenOrder && (
+              <span className='status-badge preparing'>Готовится</span>
+            )}
+            {isReadyKitchenOrder && (
+              <span className='status-badge ready'>Готово</span>
+            )}
+            {hasAssembly && (
+              <span className='status-badge waiting'>Есть сборка</span>
+            )}
+          </div>
+        </div>
 
-				<div className='kitchen-column'>
-					<div className='column-title'>
-						<h3>Готовы</h3>
-						<span>{readyOrders.length}</span>
-					</div>
+        <div className='order-meta'>
+          <p>
+            <strong>Статус кухни:</strong> {getKitchenStatusLabel(order)}
+          </p>
+          <p>
+            <strong>Переход в сборку:</strong> {getAssemblyFlowLabel(order)}
+          </p>
+        </div>
 
-					<div className='orders-stack'>
-						{loading ? (
-							<div className='empty-box'>Загрузка...</div>
-						) : readyOrders.length === 0 ? (
-							<div className='empty-box'>Нет готовых заказов</div>
-						) : (
-							readyOrders.map((order) => (
-								<div className='order-card ready-card' key={order.id}>
-									<div className='order-card__header'>
-										<h2>Заказ №{order.order_number}</h2>
-										<span className='status-badge ready'>Готов</span>
-									</div>
+        {!!kitchenItems.length && (
+          <div className='item-group kitchen'>
+            <div className='item-group__title'>Позиции кухни</div>
+            <div className='order-items'>
+              {kitchenItems.map((item, index) => (
+                <div
+                  key={`${order.id}-k-${item.id}-${index}`}
+                  className={`order-item-line kitchen-item-line ${
+                    isReadyKitchenOrder ? 'done' : ''
+                  }`}
+                >
+                  <span>{item.title}</span>
+                  <strong>x{item.quantity || 1}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-									<div className='order-meta'>
-										<p>
-											<strong>Время:</strong>{' '}
-											{new Date(order.created_at).toLocaleTimeString()}
-										</p>
-										<p>
-											<strong>Источник:</strong> {getSourceText(order.source)}
-										</p>
-									</div>
+        {order.comment && <div className='comment-box'>💬 {order.comment}</div>}
 
-									<div className='order-items'>
-										{order.items.map((item, index) => (
-											<div
-												key={`${order.id}-${item.id}-${index}`}
-												className='order-item-line'
-											>
-												<span>{item.title}</span>
-												<strong>x{item.quantity || 1}</strong>
-											</div>
-										))}
-									</div>
+        <div className='action-row'>
+          {isNewKitchenOrder && (
+            <button
+              type='button'
+              className='primary-btn'
+              onClick={() => handleKitchenStart(order)}
+            >
+              Принять
+            </button>
+          )}
 
-									{order.comment && (
-										<div className='kitchen-comment-box'>
-											💬 {order.comment}
-										</div>
-									)}
-								</div>
-							))
-						)}
-					</div>
-				</div>
-			</div>
-		</div>
-	)
+          {isPreparingKitchenOrder && (
+            <button
+              type='button'
+              className='success-btn'
+              onClick={() => handleKitchenReady(order)}
+            >
+              Готово
+            </button>
+          )}
+
+          {isReadyKitchenOrder && (
+            <button type='button' className='ready-btn' disabled>
+              Кухня завершила
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='monitor-page kitchen-theme'>
+      <div className='page-header'>
+        <div>
+          <h1>Монитор кухни</h1>
+          <p>На кухне отображаются только позиции, относящиеся к кухне</p>
+        </div>
+      </div>
+
+      {error && <div className='error-box'>{error}</div>}
+
+      <div className='monitor-columns three-columns'>
+        <div className='monitor-column'>
+          <div className='column-title new-col'>
+            <h3>Новые</h3>
+            <span>{newOrders.length}</span>
+          </div>
+
+          <div className='orders-stack'>
+            {loading ? (
+              <div className='empty-box'>Загрузка...</div>
+            ) : newOrders.length === 0 ? (
+              <div className='empty-box'>Новых заказов нет</div>
+            ) : (
+              newOrders.map(renderOrderCard)
+            )}
+          </div>
+        </div>
+
+        <div className='monitor-column'>
+          <div className='column-title preparing-col'>
+            <h3>Готовятся</h3>
+            <span>{preparingOrders.length}</span>
+          </div>
+
+          <div className='orders-stack'>
+            {loading ? (
+              <div className='empty-box'>Загрузка...</div>
+            ) : preparingOrders.length === 0 ? (
+              <div className='empty-box'>Заказов в работе нет</div>
+            ) : (
+              preparingOrders.map(renderOrderCard)
+            )}
+          </div>
+        </div>
+
+        <div className='monitor-column'>
+          <div className='column-title ready-col'>
+            <h3>Готово</h3>
+            <span>{readyOrders.length}</span>
+          </div>
+
+          <div className='orders-stack'>
+            {loading ? (
+              <div className='empty-box'>Загрузка...</div>
+            ) : readyOrders.length === 0 ? (
+              <div className='empty-box'>Готовых заказов нет</div>
+            ) : (
+              readyOrders.map(renderOrderCard)
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default KitchenMonitor

@@ -1,60 +1,62 @@
 import { supabase } from "../lib/supabase";
-import { ICategoryRow } from "../types/menu";
+import { ICategoryPayload, ICategoryRow } from "../types/menu";
 
-export const fetchCategories = async (): Promise<ICategoryRow[]> => {
+export async function fetchCategories(): Promise<ICategoryRow[]> {
   const { data, error } = await supabase
     .from("categories")
     .select("*")
     .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
-  if (error) throw error;
-  return (data || []) as ICategoryRow[];
-};
+  if (error) throw new Error(error.message);
+  return (data as ICategoryRow[]) ?? [];
+}
 
-export const createCategory = async (payload: {
-  name: string;
-  image?: string;
-  sort_order?: number;
-}): Promise<ICategoryRow> => {
+export async function createCategory(
+  payload: ICategoryPayload
+): Promise<ICategoryRow> {
   const { data, error } = await supabase
     .from("categories")
     .insert({
       name: payload.name,
-      image: payload.image || null,
-      sort_order: payload.sort_order ?? 0,
+      sort_order: payload.sort_order,
+      type: payload.type,
+      image: payload.image ?? null,
     })
-    .select("*")
+    .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data as ICategoryRow;
-};
+}
 
-export const updateCategory = async (
+export async function updateCategory(
   id: string,
-  payload: {
-    name: string;
-    image?: string;
-    sort_order?: number;
-  }
-): Promise<ICategoryRow> => {
+  payload: Partial<ICategoryPayload>
+): Promise<ICategoryRow> {
   const { data, error } = await supabase
     .from("categories")
     .update({
-      name: payload.name,
-      image: payload.image || null,
-      sort_order: payload.sort_order ?? 0,
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.sort_order !== undefined
+        ? { sort_order: payload.sort_order }
+        : {}),
+      ...(payload.type !== undefined ? { type: payload.type } : {}),
+      ...(payload.image !== undefined ? { image: payload.image } : {}),
     })
     .eq("id", id)
-    .select("*")
+    .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data as ICategoryRow;
-};
+}
 
-export const deleteCategory = async (id: string): Promise<void> => {
-  const { error } = await supabase.from("categories").delete().eq("id", id);
-  if (error) throw error;
-};
+export async function deleteCategory(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("categories")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+}

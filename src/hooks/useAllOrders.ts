@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { fetchActiveOrders } from '../api/orders'
+import { fetchOrders } from '../api/orders'
 import { IOrderRow } from '../types/order'
 import { supabase } from '../lib/supabase'
 
-const ACTIVE_STATUSES = ['new', 'preparing', 'ready']
-
-export function useOrders() {
+export function useAllOrders() {
   const [orders, setOrders] = useState<IOrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -18,16 +16,16 @@ export function useOrders() {
         setLoading(true)
         setError('')
 
-        const data = await fetchActiveOrders()
+        const data = await fetchOrders()
 
         if (mounted) {
           setOrders(Array.isArray(data) ? data : [])
         }
       } catch (err: any) {
-        console.error('LOAD ACTIVE ORDERS ERROR:', err)
+        console.error('LOAD ALL ORDERS ERROR:', err)
 
         if (mounted) {
-          setError(err?.message || 'Не удалось загрузить активные заказы')
+          setError(err?.message || 'Не удалось загрузить заказы')
           setOrders([])
         }
       } finally {
@@ -40,7 +38,7 @@ export function useOrders() {
     load()
 
     const channel = supabase
-      .channel(`orders-active-realtime-${Math.random().toString(36).slice(2)}`)
+      .channel(`orders-all-realtime-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
@@ -58,12 +56,9 @@ export function useOrders() {
           setOrders((prev) => {
             let next = Array.isArray(prev) ? [...prev] : []
 
-            if (eventType === 'INSERT' && newRow) {
-              const isActive = ACTIVE_STATUSES.includes(newRow.status)
-
-              if (!isActive) return next
-
+            if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRow) {
               const exists = next.some((item) => item.id === newRow.id)
+
               if (exists) {
                 next = next.map((item) =>
                   item.id === newRow.id ? newRow : item
@@ -73,37 +68,19 @@ export function useOrders() {
               }
             }
 
-            if (eventType === 'UPDATE' && newRow) {
-              const isActive = ACTIVE_STATUSES.includes(newRow.status)
-
-              if (isActive) {
-                const exists = next.some((item) => item.id === newRow.id)
-
-                if (exists) {
-                  next = next.map((item) =>
-                    item.id === newRow.id ? newRow : item
-                  )
-                } else {
-                  next = [newRow, ...next]
-                }
-              } else {
-                next = next.filter((item) => item.id !== newRow.id)
-              }
-            }
-
             if (eventType === 'DELETE' && oldRow) {
               next = next.filter((item) => item.id !== oldRow.id)
             }
 
             return next.sort(
-              (a, b) => Number(b.order_number) - Number(a.order_number)
+              (a, b) =>
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime()
             )
           })
         }
       )
-      .subscribe((status) => {
-        console.log('ACTIVE ORDERS CHANNEL STATUS:', status)
-      })
+      .subscribe()
 
     return () => {
       mounted = false
@@ -111,5 +88,5 @@ export function useOrders() {
     }
   }, [])
 
-  return { orders, loading, error, setOrders }
+  return { orders, loading, error }
 }
