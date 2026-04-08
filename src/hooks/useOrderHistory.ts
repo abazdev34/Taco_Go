@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
-import { fetchActiveOrders } from '../api/orders'
+import { fetchHistoryOrders } from '../api/orders'
 import { IOrderRow } from '../types/order'
 import { supabase } from '../lib/supabase'
 
-const ACTIVE_STATUSES = ['new', 'preparing', 'ready']
-
-export function useOrders() {
-  const [orders, setOrders] = useState<IOrderRow[]>([])
+export function useOrderHistory() {
+  const [history, setHistory] = useState<IOrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -18,17 +16,17 @@ export function useOrders() {
         setLoading(true)
         setError('')
 
-        const data = await fetchActiveOrders()
+        const data = await fetchHistoryOrders()
 
         if (mounted) {
-          setOrders(Array.isArray(data) ? data : [])
+          setHistory(Array.isArray(data) ? data : [])
         }
       } catch (err: any) {
-        console.error('LOAD ACTIVE ORDERS ERROR:', err)
+        console.error('LOAD ORDER HISTORY ERROR:', err)
 
         if (mounted) {
-          setError(err?.message || 'Не удалось загрузить активные заказы')
-          setOrders([])
+          setError(err?.message || 'Не удалось загрузить историю заказов')
+          setHistory([])
         }
       } finally {
         if (mounted) {
@@ -40,7 +38,7 @@ export function useOrders() {
     load()
 
     const channel = supabase
-      .channel(`orders-active-realtime-${Math.random().toString(36).slice(2)}`)
+      .channel(`orders-history-realtime-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
@@ -55,13 +53,11 @@ export function useOrders() {
           const newRow = payload.new as IOrderRow | undefined
           const oldRow = payload.old as IOrderRow | undefined
 
-          setOrders((prev) => {
+          setHistory((prev) => {
             let next = Array.isArray(prev) ? [...prev] : []
 
             if (eventType === 'INSERT' && newRow) {
-              const isActive = ACTIVE_STATUSES.includes(newRow.status)
-
-              if (!isActive) return next
+              if (newRow.status !== 'completed') return next
 
               const exists = next.some((item) => item.id === newRow.id)
               if (exists) {
@@ -74,9 +70,7 @@ export function useOrders() {
             }
 
             if (eventType === 'UPDATE' && newRow) {
-              const isActive = ACTIVE_STATUSES.includes(newRow.status)
-
-              if (isActive) {
+              if (newRow.status === 'completed') {
                 const exists = next.some((item) => item.id === newRow.id)
 
                 if (exists) {
@@ -96,13 +90,13 @@ export function useOrders() {
             }
 
             return next.sort(
-              (a, b) => Number(b.order_number) - Number(a.order_number)
+              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             )
           })
         }
       )
       .subscribe((status) => {
-        console.log('ACTIVE ORDERS CHANNEL STATUS:', status)
+        console.log('ORDER HISTORY CHANNEL STATUS:', status)
       })
 
     return () => {
@@ -111,5 +105,5 @@ export function useOrders() {
     }
   }, [])
 
-  return { orders, loading, error, setOrders }
+  return { history, loading, error }
 }

@@ -1,408 +1,554 @@
 import { useMemo, useState } from 'react'
 import '../Navbar/monitor.scss'
-import { useOrders } from '../../hooks/useOrders'
+import { useOrderHistory } from '../../hooks/useOrderHistory'
 import { formatPrice } from '../../utils/currency'
 import { generatePDF } from '../../utils/pdf'
 import { sendEmailReport } from '../../utils/email'
 import { IOrderRow } from '../../types/order'
 
 type DayGroup = {
-	dateKey: string
-	dateLabel: string
-	orders: IOrderRow[]
-	totalRevenue: number
-	totalOrders: number
-	itemsSummary: {
-		title: string
-		quantity: number
-		total: number
-	}[]
+  dateKey: string
+  dateLabel: string
+  orders: IOrderRow[]
+  totalRevenue: number
+  totalOrders: number
+  onlineRevenue: number
+  cashRevenue: number
+  onlineOrders: number
+  cashOrders: number
+  itemsSummary: {
+    title: string
+    quantity: number
+    total: number
+  }[]
 }
 
 type MonthGroup = {
-	monthKey: string
-	monthLabel: string
-	days: DayGroup[]
-	totalRevenue: number
-	totalOrders: number
+  monthKey: string
+  monthLabel: string
+  days: DayGroup[]
+  totalRevenue: number
+  totalOrders: number
 }
 
 const HistoryMonitor = () => {
-	const { history, loading, error } = useOrders()
+  const { history, loading, error } = useOrderHistory()
+  const safeHistory = Array.isArray(history) ? history : []
 
-	const [openedMonth, setOpenedMonth] = useState<string | null>(null)
-	const [openedDay, setOpenedDay] = useState<string | null>(null)
-	const [openedOrderId, setOpenedOrderId] = useState<string | null>(null)
-	const [openedReportDay, setOpenedReportDay] = useState<string | null>(null)
+  const [openedMonth, setOpenedMonth] = useState<string | null>(null)
+  const [openedDay, setOpenedDay] = useState<string | null>(null)
+  const [openedOrderId, setOpenedOrderId] = useState<string | null>(null)
+  const [openedReportDay, setOpenedReportDay] = useState<string | null>(null)
 
-	const getSourceText = (source?: string) => {
-		switch (source) {
-			case 'client':
-				return 'Клиент'
-			case 'cashier':
-				return 'Кассир'
-			default:
-				return 'Неизвестно'
-		}
-	}
+  const getSourceText = (source?: string | null) => {
+    switch (source) {
+      case 'client':
+        return 'Клиент'
+      case 'cashier':
+        return 'Кассир'
+      default:
+        return 'Неизвестно'
+    }
+  }
 
-	const monthGroups: MonthGroup[] = useMemo(() => {
-		const monthMap = new Map<string, IOrderRow[]>()
+  const getPaymentMethodText = (paymentMethod?: string | null) => {
+    switch (paymentMethod) {
+      case 'online':
+        return 'Онлайн'
+      case 'cash':
+        return 'Наличные'
+      default:
+        return 'Неизвестно'
+    }
+  }
 
-		history.forEach((order) => {
-			const date = new Date(order.created_at)
-			const monthKey = `${date.getFullYear()}-${String(
-				date.getMonth() + 1
-			).padStart(2, '0')}`
+  const revenueStats = useMemo(() => {
+    return safeHistory.reduce(
+      (acc, order) => {
+        const total = Number(order.total || 0)
 
-			if (!monthMap.has(monthKey)) {
-				monthMap.set(monthKey, [])
-			}
+        if (order.payment_method === 'online') {
+          acc.onlineRevenue += total
+          acc.onlineOrders += 1
+        } else if (order.payment_method === 'cash') {
+          acc.cashRevenue += total
+          acc.cashOrders += 1
+        }
 
-			monthMap.get(monthKey)?.push(order)
-		})
+        acc.totalRevenue += total
+        acc.totalOrders += 1
 
-		return Array.from(monthMap.entries())
-			.map(([monthKey, monthOrders]) => {
-				const monthDate = new Date(monthOrders[0].created_at)
+        return acc
+      },
+      {
+        onlineRevenue: 0,
+        cashRevenue: 0,
+        totalRevenue: 0,
+        onlineOrders: 0,
+        cashOrders: 0,
+        totalOrders: 0,
+      }
+    )
+  }, [safeHistory])
 
-				const monthLabel = monthDate.toLocaleDateString('ru-RU', {
-					month: 'long',
-					year: 'numeric',
-				})
+  const monthGroups: MonthGroup[] = useMemo(() => {
+    const monthMap = new Map<string, IOrderRow[]>()
 
-				const dayMap = new Map<string, IOrderRow[]>()
+    safeHistory.forEach((order) => {
+      if (!order?.created_at) return
 
-				monthOrders.forEach((order) => {
-					const d = new Date(order.created_at)
-					const dayKey = d.toISOString().slice(0, 10)
+      const date = new Date(order.created_at)
+      if (Number.isNaN(date.getTime())) return
 
-					if (!dayMap.has(dayKey)) {
-						dayMap.set(dayKey, [])
-					}
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, '0')}`
 
-					dayMap.get(dayKey)?.push(order)
-				})
+      if (!monthMap.has(monthKey)) {
+        monthMap.set(monthKey, [])
+      }
 
-				const days: DayGroup[] = Array.from(dayMap.entries())
-					.map(([dayKey, dayOrders]) => {
-						const dateLabel = new Date(dayOrders[0].created_at).toLocaleDateString(
-							'ru-RU',
-							{
-								year: 'numeric',
-								month: 'long',
-								day: 'numeric',
-							}
-						)
+      monthMap.get(monthKey)?.push(order)
+    })
 
-						const itemsMap = new Map<
-							string,
-							{ title: string; quantity: number; total: number }
-						>()
+    return Array.from(monthMap.entries())
+      .map(([monthKey, monthOrders]) => {
+        if (!monthOrders.length) {
+          return {
+            monthKey,
+            monthLabel: '',
+            days: [],
+            totalRevenue: 0,
+            totalOrders: 0,
+          }
+        }
 
-						dayOrders.forEach((order) => {
-							order.items.forEach((item) => {
-								const prev = itemsMap.get(item.title)
-								const qty = Number(item.quantity || 0)
-								const sum = Number(item.price || 0) * qty
+        const monthDate = new Date(monthOrders[0].created_at)
 
-								if (prev) {
-									itemsMap.set(item.title, {
-										title: item.title,
-										quantity: prev.quantity + qty,
-										total: prev.total + sum,
-									})
-								} else {
-									itemsMap.set(item.title, {
-										title: item.title,
-										quantity: qty,
-										total: sum,
-									})
-								}
-							})
-						})
+        const monthLabel = monthDate.toLocaleDateString('ru-RU', {
+          month: 'long',
+          year: 'numeric',
+        })
 
-						return {
-							dateKey: dayKey,
-							dateLabel,
-							orders: dayOrders.sort(
-								(a, b) => b.order_number - a.order_number
-							),
-							totalRevenue: dayOrders.reduce(
-								(acc, order) => acc + Number(order.total || 0),
-								0
-							),
-							totalOrders: dayOrders.length,
-							itemsSummary: Array.from(itemsMap.values()).sort(
-								(a, b) => b.quantity - a.quantity
-							),
-						}
-					})
-					.sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1))
+        const dayMap = new Map<string, IOrderRow[]>()
 
-				return {
-					monthKey,
-					monthLabel:
-						monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1) + ' г.',
-					days,
-					totalRevenue: monthOrders.reduce(
-						(acc, order) => acc + Number(order.total || 0),
-						0
-					),
-					totalOrders: monthOrders.length,
-				}
-			})
-			.sort((a, b) => (a.monthKey < b.monthKey ? 1 : -1))
-	}, [history])
+        monthOrders.forEach((order) => {
+          const d = new Date(order.created_at)
+          if (Number.isNaN(d.getTime())) return
 
-	const totalRevenueAll = useMemo(() => {
-		return history.reduce((acc, order) => acc + Number(order.total || 0), 0)
-	}, [history])
+          const dayKey = d.toISOString().slice(0, 10)
 
-	const handleOpenOrder = (orderId: string) => {
-		setOpenedOrderId((current) => (current === orderId ? null : orderId))
-	}
+          if (!dayMap.has(dayKey)) {
+            dayMap.set(dayKey, [])
+          }
 
-	const handlePdfReport = async (day: DayGroup) => {
-		await generatePDF(`report-${day.dateKey}`, `otchet-${day.dateKey}.pdf`)
-	}
+          dayMap.get(dayKey)?.push(order)
+        })
 
-	const handleEmailReport = (day: DayGroup) => {
-		const lines = [
-			`Отчет за ${day.dateLabel}`,
-			`Количество заказов: ${day.totalOrders}`,
-			`Выручка: ${formatPrice(day.totalRevenue)}`,
-			'',
-			'Проданные блюда:',
-			...day.itemsSummary.map(
-				(item) =>
-					`${item.title} — ${item.quantity} шт. — ${formatPrice(item.total)}`
-			),
-		]
+        const days: DayGroup[] = Array.from(dayMap.entries())
+          .map(([dayKey, dayOrders]) => {
+            const firstOrder = dayOrders[0]
 
-		sendEmailReport(`Отчет за ${day.dateLabel}`, lines.join('\n'))
-	}
+            const dateLabel = new Date(firstOrder.created_at).toLocaleDateString(
+              'ru-RU',
+              {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              }
+            )
 
-	return (
-		<div className='monitor-page history-theme'>
-			
+            const itemsMap = new Map<
+              string,
+              { title: string; quantity: number; total: number }
+            >()
 
-			<div className='page-header'>
-				<div>
-					<h1>История заказов</h1>
-					<p>История сгруппирована по месяцам и дням</p>
-				</div>
+            dayOrders.forEach((order) => {
+              const items = Array.isArray(order.items) ? order.items : []
 
-				<div className='history-summary-box'>
-					<div>
-						<span>Всего заказов</span>
-						<strong>{history.length}</strong>
-					</div>
-					<div>
-						<span>Общая выручка</span>
-						<strong>{formatPrice(totalRevenueAll)}</strong>
-					</div>
-				</div>
-			</div>
+              items.forEach((item) => {
+                const title = item.title || 'Без названия'
+                const prev = itemsMap.get(title)
+                const qty = Number(item.quantity || 0)
+                const sum = Number(item.price || 0) * qty
 
-			{error && <div className='error-box'>{error}</div>}
+                if (prev) {
+                  itemsMap.set(title, {
+                    title,
+                    quantity: prev.quantity + qty,
+                    total: prev.total + sum,
+                  })
+                } else {
+                  itemsMap.set(title, {
+                    title,
+                    quantity: qty,
+                    total: sum,
+                  })
+                }
+              })
+            })
 
-			<div className='history-day-list'>
-				{loading ? (
-					<div className='empty-monitor'>
-						<h2>Загрузка...</h2>
-					</div>
-				) : monthGroups.length === 0 ? (
-					<div className='empty-monitor'>
-						<h2>История пока пуста</h2>
-					</div>
-				) : (
-					monthGroups.map((month) => (
-						<div key={month.monthKey} className='history-month-folder'>
-							<div className='history-day-folder__header'>
-								<button
-									className='history-day-folder__title'
-									onClick={() =>
-										setOpenedMonth((prev) =>
-											prev === month.monthKey ? null : month.monthKey
-										)
-									}
-								>
-									📁 {month.monthLabel}
-								</button>
+            const onlineRevenue = dayOrders.reduce((acc, order) => {
+              return order.payment_method === 'online'
+                ? acc + Number(order.total || 0)
+                : acc
+            }, 0)
 
-								<div className='history-day-folder__stats'>
-									<span>{month.totalOrders} заказов</span>
-									<strong>{formatPrice(month.totalRevenue)}</strong>
-								</div>
-							</div>
+            const cashRevenue = dayOrders.reduce((acc, order) => {
+              return order.payment_method === 'cash'
+                ? acc + Number(order.total || 0)
+                : acc
+            }, 0)
 
-							{openedMonth === month.monthKey && (
-								<div className='history-month-content'>
-									{month.days.map((day) => (
-										<div key={day.dateKey} className='history-day-folder nested'>
-											<div className='history-day-folder__header'>
-												<button
-													className='history-day-folder__title'
-													onClick={() =>
-														setOpenedDay((prev) =>
-															prev === day.dateKey ? null : day.dateKey
-														)
-													}
-												>
-													📅 {day.dateLabel}
-												</button>
+            const onlineOrders = dayOrders.filter(
+              (order) => order.payment_method === 'online'
+            ).length
 
-												<div className='history-day-folder__stats'>
-													<span>{day.totalOrders} заказов</span>
-													<strong>{formatPrice(day.totalRevenue)}</strong>
-												</div>
-											</div>
+            const cashOrders = dayOrders.filter(
+              (order) => order.payment_method === 'cash'
+            ).length
 
-											{openedDay === day.dateKey && (
-												<div className='history-day-folder__content'>
-													<div className='history-mini-orders'>
-														{day.orders.map((order) => (
-															<div
-																key={order.id}
-																className='history-mini-order-card'
-															>
-																<button
-																	className='history-mini-order-btn'
-																	onClick={() => handleOpenOrder(order.id)}
-																>
-																	Заказ № {order.order_number}
-																</button>
+            return {
+              dateKey: dayKey,
+              dateLabel,
+              orders: [...dayOrders].sort(
+                (a, b) =>
+                  Number(b.serial_number || 0) - Number(a.serial_number || 0)
+              ),
+              totalRevenue: dayOrders.reduce(
+                (acc, order) => acc + Number(order.total || 0),
+                0
+              ),
+              totalOrders: dayOrders.length,
+              onlineRevenue,
+              cashRevenue,
+              onlineOrders,
+              cashOrders,
+              itemsSummary: Array.from(itemsMap.values()).sort(
+                (a, b) => b.quantity - a.quantity
+              ),
+            }
+          })
+          .sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1))
 
-																{openedOrderId === order.id && (
-																	<div className='history-order-details'>
-																		<div className='history-order-meta'>
-																			<p>
-																				<strong>Дата:</strong>{' '}
-																				{new Date(order.created_at).toLocaleString()}
-																			</p>
+        return {
+          monthKey,
+          monthLabel:
+            monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1) + ' г.',
+          days,
+          totalRevenue: monthOrders.reduce(
+            (acc, order) => acc + Number(order.total || 0),
+            0
+          ),
+          totalOrders: monthOrders.length,
+        }
+      })
+      .sort((a, b) => (a.monthKey < b.monthKey ? 1 : -1))
+  }, [safeHistory])
 
-																			<p>
-																				<strong>Сумма:</strong>{' '}
-																				{formatPrice(order.total)}
-																			</p>
+  const handleOpenOrder = (orderId: string) => {
+    setOpenedOrderId((current) => (current === orderId ? null : orderId))
+  }
 
-																			<p>
-																				<strong>Источник:</strong>{' '}
-																				{getSourceText(order.source)}
-																			</p>
+  const handlePdfReport = async (day: DayGroup) => {
+    await generatePDF(`report-${day.dateKey}`, `otchet-${day.dateKey}.pdf`)
+  }
 
-																			{order.comment && (
-																				<div className='history-comment-box'>
-																					<strong>Комментарий:</strong>{' '}
-																					{order.comment}
-																				</div>
-																			)}
-																		</div>
+  const handleEmailReport = (day: DayGroup) => {
+    const lines = [
+      `Отчет за ${day.dateLabel}`,
+      `Количество заказов: ${day.totalOrders}`,
+      `Выручка: ${formatPrice(day.totalRevenue)}`,
+      `Онлайн: ${day.onlineOrders} / ${formatPrice(day.onlineRevenue)}`,
+      `Наличные: ${day.cashOrders} / ${formatPrice(day.cashRevenue)}`,
+      '',
+      'Проданные блюда:',
+      ...day.itemsSummary.map(
+        (item) =>
+          `${item.title} — ${item.quantity} шт. — ${formatPrice(item.total)}`
+      ),
+    ]
 
-																		<div className='history-order-items'>
-																			{order.items.map((item, index) => (
-																				<div
-																					key={`${item.id}-${index}`}
-																					className='history-item-row'
-																				>
-																					<span>{item.title}</span>
-																					<b>
-																						{item.quantity} шт ×{' '}
-																						{formatPrice(item.price)}
-																					</b>
-																				</div>
-																			))}
-																		</div>
-																	</div>
-																)}
-															</div>
-														))}
-													</div>
+    sendEmailReport(`Отчет за ${day.dateLabel}`, lines.join('\n'))
+  }
 
-													<div className='day-report-folder'>
-														<div className='day-report-folder__header'>
-															<button
-																className='day-report-folder__title'
-																onClick={() =>
-																	setOpenedReportDay((prev) =>
-																		prev === day.dateKey ? null : day.dateKey
-																	)
-																}
-															>
-																📄 Отчет за день
-															</button>
+  return (
+    <div className='monitor-page history-theme'>
+      <div className='page-header'>
+        <div>
+          <h1>История заказов</h1>
+          <p>История сгруппирована по месяцам и дням</p>
+        </div>
 
-															{openedReportDay === day.dateKey && (
-																<div className='history-report-actions'>
-																	<button
-																		className='print-report-btn'
-																		onClick={() => handlePdfReport(day)}
-																	>
-																		Скачать PDF
-																	</button>
+        <div className='history-summary-box'>
+          <div>
+            <span>Всего заказов</span>
+            <strong>{revenueStats.totalOrders}</strong>
+          </div>
 
-																	<button
-																		className='print-report-btn secondary'
-																		onClick={() => handleEmailReport(day)}
-																	>
-																		Отправить на почту
-																	</button>
-																</div>
-															)}
-														</div>
+          <div>
+            <span>Общая выручка</span>
+            <strong>{formatPrice(revenueStats.totalRevenue)}</strong>
+          </div>
 
-														{openedReportDay === day.dateKey && (
-															<div
-																className='day-report-card print-area'
-																id={`report-${day.dateKey}`}
-															>
-																<div className='day-report-header'>
-																	<h2>Отчет за {day.dateLabel}</h2>
-																	<p>Сводка по проданным блюдам</p>
-																</div>
+          <div>
+            <span>Онлайн</span>
+            <strong>
+              {revenueStats.onlineOrders} / {formatPrice(revenueStats.onlineRevenue)}
+            </strong>
+          </div>
 
-																<div className='day-report-table'>
-																	<div className='day-report-row day-report-head'>
-																		<span>Блюдо</span>
-																		<span>Количество</span>
-																		<span>Сумма</span>
-																	</div>
+          <div>
+            <span>Наличные</span>
+            <strong>
+              {revenueStats.cashOrders} / {formatPrice(revenueStats.cashRevenue)}
+            </strong>
+          </div>
+        </div>
+      </div>
 
-																	{day.itemsSummary.map((item) => (
-																		<div className='day-report-row' key={item.title}>
-																			<span>{item.title}</span>
-																			<span>{item.quantity} шт</span>
-																			<span>{formatPrice(item.total)}</span>
-																		</div>
-																	))}
-																</div>
+      {error && <div className='error-box'>{error}</div>}
 
-																<div className='day-report-total'>
-																	<div>
-																		<span>Всего заказов</span>
-																		<strong>{day.totalOrders}</strong>
-																	</div>
-																	<div>
-																		<span>Общая выручка</span>
-																		<strong>{formatPrice(day.totalRevenue)}</strong>
-																	</div>
-																</div>
-															</div>
-														)}
-													</div>
-												</div>
-											)}
-										</div>
-									))}
-								</div>
-							)}
-						</div>
-					))
-				)}
-			</div>
-		</div>
-	)
+      <div className='history-day-list'>
+        {loading ? (
+          <div className='empty-box large'>Загрузка...</div>
+        ) : monthGroups.length === 0 ? (
+          <div className='empty-box large'>История пока пуста</div>
+        ) : (
+          monthGroups.map((month) => (
+            <div key={month.monthKey} className='folder-card'>
+              <div className='folder-card__header'>
+                <button
+                  className='folder-card__title'
+                  onClick={() =>
+                    setOpenedMonth((prev) =>
+                      prev === month.monthKey ? null : month.monthKey
+                    )
+                  }
+                >
+                  📁 {month.monthLabel}
+                </button>
+
+                <div className='folder-card__stats'>
+                  <span>{month.totalOrders} заказов</span>
+                  <strong>{formatPrice(month.totalRevenue)}</strong>
+                </div>
+              </div>
+
+              {openedMonth === month.monthKey && (
+                <div className='folder-card__content'>
+                  {month.days.map((day) => (
+                    <div key={day.dateKey} className='folder-card nested'>
+                      <div className='folder-card__header'>
+                        <button
+                          className='folder-card__title'
+                          onClick={() =>
+                            setOpenedDay((prev) =>
+                              prev === day.dateKey ? null : day.dateKey
+                            )
+                          }
+                        >
+                          📅 {day.dateLabel}
+                        </button>
+
+                        <div className='folder-card__stats'>
+                          <span>{day.totalOrders} заказов</span>
+                          <strong>{formatPrice(day.totalRevenue)}</strong>
+                        </div>
+                      </div>
+
+                      {openedDay === day.dateKey && (
+                        <div className='folder-card__content'>
+                          <div className='day-source-stats'>
+                            <div className='day-source-stat'>
+                              <span>Онлайн</span>
+                              <strong>
+                                {day.onlineOrders} / {formatPrice(day.onlineRevenue)}
+                              </strong>
+                            </div>
+
+                            <div className='day-source-stat'>
+                              <span>Наличные</span>
+                              <strong>
+                                {day.cashOrders} / {formatPrice(day.cashRevenue)}
+                              </strong>
+                            </div>
+
+                            <div className='day-source-stat'>
+                              <span>Итого</span>
+                              <strong>
+                                {day.totalOrders} / {formatPrice(day.totalRevenue)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <div className='history-mini-orders'>
+                            {day.orders.map((order) => (
+                              <div key={order.id} className='history-mini-order-card'>
+                                <button
+                                  className='history-mini-order-btn'
+                                  onClick={() => handleOpenOrder(order.id)}
+                                >
+                                  История № {order.serial_number ?? '-'} · Заказ №{' '}
+                                  {order.order_number ?? '-'}
+                                </button>
+
+                                {openedOrderId === order.id && (
+                                  <div className='history-order-details'>
+                                    <div className='history-order-meta'>
+                                      <p>
+                                        <strong>Дата:</strong>{' '}
+                                        {new Date(order.created_at).toLocaleString()}
+                                      </p>
+
+                                      <p>
+                                        <strong>История №:</strong>{' '}
+                                        {order.serial_number ?? '-'}
+                                      </p>
+
+                                      <p>
+                                        <strong>Дневной №:</strong>{' '}
+                                        {order.order_number ?? '-'}
+                                      </p>
+
+                                      <p>
+                                        <strong>Сумма:</strong>{' '}
+                                        {formatPrice(Number(order.total || 0))}
+                                      </p>
+
+                                      <p>
+                                        <strong>Источник:</strong>{' '}
+                                        {getSourceText(order.source)}
+                                      </p>
+
+                                      <p>
+                                        <strong>Оплата:</strong>{' '}
+                                        {getPaymentMethodText(order.payment_method)}
+                                      </p>
+
+                                      {order.comment && (
+                                        <div className='comment-box'>
+                                          <strong>Комментарий:</strong>{' '}
+                                          {order.comment}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className='history-order-items'>
+                                      {(order.items ?? []).map((item, index) => (
+                                        <div
+                                          key={`${item.id}-${index}`}
+                                          className='history-item-row'
+                                        >
+                                          <span>{item.title}</span>
+                                          <b>
+                                            {item.quantity || 0} шт ×{' '}
+                                            {formatPrice(Number(item.price || 0))}
+                                          </b>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className='folder-card report-folder'>
+                            <div className='folder-card__header'>
+                              <button
+                                className='folder-card__title'
+                                onClick={() =>
+                                  setOpenedReportDay((prev) =>
+                                    prev === day.dateKey ? null : day.dateKey
+                                  )
+                                }
+                              >
+                                📄 Отчет за день
+                              </button>
+
+                              {openedReportDay === day.dateKey && (
+                                <div className='history-report-actions'>
+                                  <button
+                                    className='primary-btn'
+                                    onClick={() => handlePdfReport(day)}
+                                  >
+                                    Скачать PDF
+                                  </button>
+
+                                  <button
+                                    className='secondary-btn'
+                                    onClick={() => handleEmailReport(day)}
+                                  >
+                                    Отправить на почту
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {openedReportDay === day.dateKey && (
+                              <div
+                                className='day-report-card print-area'
+                                id={`report-${day.dateKey}`}
+                              >
+                                <div className='day-report-header'>
+                                  <h2>Отчет за {day.dateLabel}</h2>
+                                  <p>Сводка по проданным блюдам</p>
+                                </div>
+
+                                <div className='day-report-table'>
+                                  <div className='day-report-row day-report-head'>
+                                    <span>Блюдо</span>
+                                    <span>Количество</span>
+                                    <span>Сумма</span>
+                                  </div>
+
+                                  {day.itemsSummary.map((item) => (
+                                    <div className='day-report-row' key={item.title}>
+                                      <span>{item.title}</span>
+                                      <span>{item.quantity} шт</span>
+                                      <span>{formatPrice(item.total)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className='day-report-total'>
+                                  <div>
+                                    <span>Всего заказов</span>
+                                    <strong>{day.totalOrders}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Онлайн</span>
+                                    <strong>
+                                      {day.onlineOrders} / {formatPrice(day.onlineRevenue)}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span>Наличные</span>
+                                    <strong>
+                                      {day.cashOrders} / {formatPrice(day.cashRevenue)}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span>Общая выручка</span>
+                                    <strong>{formatPrice(day.totalRevenue)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default HistoryMonitor

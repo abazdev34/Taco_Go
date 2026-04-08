@@ -1,118 +1,189 @@
 import { supabase } from '../lib/supabase'
 import {
-	IMenuItem,
-	IOrderRow,
-	TOrderSource,
-	TOrderStatus,
+  ICreateOrderPayload,
+  IOrderRow,
+  TAssemblyStatus,
+  TKitchenStatus,
+  TOrderStatus,
 } from '../types/order'
 
-export interface CreateOrderPayload {
-	items: IMenuItem[]
-	total: number
-	comment?: string
-	customer_name?: string
-	table_number?: number | null
-	source?: TOrderSource
-	status?: TOrderStatus
+export async function fetchOrders(): Promise<IOrderRow[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data || []) as IOrderRow[]
 }
 
-export const fetchActiveOrders = async (): Promise<IOrderRow[]> => {
-	const { data, error } = await supabase
-		.from('orders')
-		.select('*')
-		.neq('status', 'completed')
-		.order('order_number', { ascending: false })
+export async function fetchActiveOrders(): Promise<IOrderRow[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .in('status', ['new', 'preparing', 'ready'])
+    .order('created_at', { ascending: false })
 
-	if (error) {
-		console.error('fetchActiveOrders error:', error)
-		throw error
-	}
+  if (error) {
+    throw new Error(error.message)
+  }
 
-	return (data || []) as IOrderRow[]
+  return (data || []) as IOrderRow[]
 }
 
-export const fetchHistoryOrders = async (): Promise<IOrderRow[]> => {
-	const { data, error } = await supabase
-		.from('orders')
-		.select('*')
-		.eq('status', 'completed')
-		.order('order_number', { ascending: false })
+export async function fetchHistoryOrders(): Promise<IOrderRow[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
 
-	if (error) {
-		console.error('fetchHistoryOrders error:', error)
-		throw error
-	}
+  if (error) {
+    throw new Error(error.message)
+  }
 
-	return (data || []) as IOrderRow[]
+  return (data || []) as IOrderRow[]
 }
 
-export const createOrder = async ({
-	items,
-	total,
-	comment = '',
-	customer_name = 'Гость',
-	table_number = null,
-	source = 'cashier',
-	status = 'new',
-}: CreateOrderPayload): Promise<IOrderRow> => {
-	const payload = {
-		customer_name,
-		table_number,
-		status,
-		items,
-		total,
-		comment,
-		source,
-	}
+export async function createOrder(
+  payload: ICreateOrderPayload
+): Promise<IOrderRow> {
+  const items = Array.isArray(payload.items) ? payload.items : []
 
-	const { data, error } = await supabase
-		.from('orders')
-		.insert(payload)
-		.select('*')
-		.single()
+  const hasKitchen = items.some(
+    (item) => item?.categories?.type !== 'assembly'
+  )
 
-	if (error) {
-		console.error('createOrder error:', error)
-		throw error
-	}
+  const hasAssembly = items.some(
+    (item) => item?.categories?.type === 'assembly'
+  )
 
-	return data as IOrderRow
+  const insertPayload = {
+    items,
+    total: Number(payload.total ?? 0),
+    comment: payload.comment?.trim() || null,
+    source: payload.source ?? 'client',
+    status: hasKitchen ? 'new' : hasAssembly ? 'preparing' : 'new',
+    kitchen_status: hasKitchen ? 'new' : 'skipped',
+    assembly_status: hasAssembly
+      ? hasKitchen
+        ? 'waiting'
+        : 'new'
+      : 'skipped',
+    customer_name: payload.customer_name?.trim() || null,
+    table_number: payload.table_number ?? null,
+    order_place: payload.order_place ?? payload.order_type ?? 'hall',
+    assembly_progress: Array.isArray(payload.assembly_progress)
+      ? payload.assembly_progress
+      : [],
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .insert([insertPayload])
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as IOrderRow
 }
 
-export const updateOrderStatus = async (
-	id: string,
-	status: TOrderStatus
-): Promise<IOrderRow> => {
-	const { data, error } = await supabase
-		.from('orders')
-		.update({ status })
-		.eq('id', id)
-		.select('*')
-		.single()
+export async function updateOrderStatus(
+  id: string,
+  status: TOrderStatus
+): Promise<IOrderRow> {
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', id)
+    .select()
+    .single()
 
-	if (error) {
-		console.error('updateOrderStatus error:', error)
-		throw error
-	}
+  if (error) {
+    throw new Error(error.message)
+  }
 
-	return data as IOrderRow
+  return data as IOrderRow
 }
 
-export const updateOrderComment = async (
-	id: string,
-	comment: string
-): Promise<IOrderRow> => {
-	const { data, error } = await supabase
-		.from('orders')
-		.update({ comment })
-		.eq('id', id)
-		.select('*')
-		.single()
+export async function updateOrderComment(
+  id: string,
+  comment: string
+): Promise<IOrderRow> {
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ comment: comment.trim() || null })
+    .eq('id', id)
+    .select()
+    .single()
 
-	if (error) {
-		console.error('updateOrderComment error:', error)
-		throw error
-	}
+  if (error) {
+    throw new Error(error.message)
+  }
 
-	return data as IOrderRow
+  return data as IOrderRow
+}
+
+export async function updateOrderWorkflow(
+  id: string,
+  payload: Partial<{
+    status: TOrderStatus
+    kitchen_status: TKitchenStatus
+    assembly_status: TAssemblyStatus
+    assembly_progress: string[]
+  }>
+): Promise<IOrderRow> {
+  const safePayload = {
+    ...payload,
+    assembly_progress: Array.isArray(payload.assembly_progress)
+      ? payload.assembly_progress
+      : payload.assembly_progress === undefined
+      ? undefined
+      : [],
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update(safePayload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as IOrderRow
+}
+
+export async function updateCashierOrder(
+  id: string,
+  payload: Partial<{
+    cashier_status: 'new' | 'preparing' | 'ready' | 'issued'
+    payment_method: 'cash' | 'online'
+    paid_amount: number
+    change_amount: number
+    cashier_name: string
+    paid_at: string
+    status: TOrderStatus
+  }>
+): Promise<IOrderRow> {
+  const { data, error } = await supabase
+    .from('orders')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as IOrderRow
 }
