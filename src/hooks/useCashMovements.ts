@@ -1,45 +1,96 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import {
+  clearAllCashMovements,
+  clearCashMovementsByStatus,
+  deleteCashMovement,
+  deleteCashMovements,
   fetchCashMovements,
   ICashMovementRow,
+  TCashMovementStatus,
 } from '../api/cashMovements'
 
-export function useCashMovements() {
+export const useCashMovements = () => {
   const [movements, setMovements] = useState<ICashMovementRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let mounted = true
-
-    const load = async () => {
-      try {
-        setLoading(true)
-        setError('')
-
-        const data = await fetchCashMovements()
-
-        if (mounted) {
-          setMovements(Array.isArray(data) ? data : [])
-        }
-      } catch (err: any) {
-        console.error('LOAD CASH MOVEMENTS ERROR:', err)
-        if (mounted) {
-          setError(err?.message || 'Не удалось загрузить кассовые движения')
-          setMovements([])
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
+  const loadMovements = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await fetchCashMovements()
+      setMovements(data)
+    } catch (e: any) {
+      console.error('LOAD CASH MOVEMENTS ERROR:', e)
+      setError(e?.message || 'Не удалось загрузить движения кассы')
+    } finally {
+      setLoading(false)
     }
+  }, [])
 
-    load()
+  const removeOne = useCallback(
+    async (id: string) => {
+      try {
+        setError('')
+        await deleteCashMovement(id)
+        await loadMovements()
+      } catch (e: any) {
+        console.error('DELETE CASH MOVEMENT ERROR:', e)
+        setError(e?.message || 'Не удалось удалить запись')
+        throw e
+      }
+    },
+    [loadMovements]
+  )
+
+  const removeMany = useCallback(
+    async (ids: string[]) => {
+      try {
+        setError('')
+        await deleteCashMovements(ids)
+        await loadMovements()
+      } catch (e: any) {
+        console.error('DELETE MANY CASH MOVEMENTS ERROR:', e)
+        setError(e?.message || 'Не удалось удалить записи')
+        throw e
+      }
+    },
+    [loadMovements]
+  )
+
+  const clearByStatus = useCallback(
+    async (statuses: TCashMovementStatus[]) => {
+      try {
+        setError('')
+        await clearCashMovementsByStatus(statuses)
+        await loadMovements()
+      } catch (e: any) {
+        console.error('CLEAR CASH MOVEMENTS BY STATUS ERROR:', e)
+        setError(e?.message || 'Не удалось очистить журнал')
+        throw e
+      }
+    },
+    [loadMovements]
+  )
+
+  const clearAll = useCallback(async () => {
+    try {
+      setError('')
+      await clearAllCashMovements()
+      await loadMovements()
+    } catch (e: any) {
+      console.error('CLEAR ALL CASH MOVEMENTS ERROR:', e)
+      setError(e?.message || 'Не удалось очистить все записи')
+      throw e
+    }
+  }, [loadMovements])
+
+  useEffect(() => {
+    loadMovements()
 
     const channel = supabase
-      .channel(`cash-movements-${Math.random().toString(36).slice(2)}`)
+      .channel('cash-movements-realtime')
       .on(
         'postgres_changes',
         {
@@ -47,53 +98,25 @@ export function useCashMovements() {
           schema: 'public',
           table: 'cash_movements',
         },
-        (payload) => {
-          if (!mounted) return
-
-          const eventType = payload.eventType
-          const newRow = payload.new as ICashMovementRow | undefined
-          const oldRow = payload.old as ICashMovementRow | undefined
-
-          setMovements((prev) => {
-            let next = Array.isArray(prev) ? [...prev] : []
-
-            if (eventType === 'INSERT' && newRow) {
-              const exists = next.some((item) => item.id === newRow.id)
-              if (exists) {
-                next = next.map((item) => (item.id === newRow.id ? newRow : item))
-              } else {
-                next = [newRow, ...next]
-              }
-            }
-
-            if (eventType === 'UPDATE' && newRow) {
-              const exists = next.some((item) => item.id === newRow.id)
-              if (exists) {
-                next = next.map((item) => (item.id === newRow.id ? newRow : item))
-              } else {
-                next = [newRow, ...next]
-              }
-            }
-
-            if (eventType === 'DELETE' && oldRow) {
-              next = next.filter((item) => item.id !== oldRow.id)
-            }
-
-            return next.sort(
-              (a, b) =>
-                new Date(b.created_at).getTime() -
-                new Date(a.created_at).getTime()
-            )
-          })
+        () => {
+          loadMovements()
         }
       )
       .subscribe()
 
     return () => {
-      mounted = false
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [loadMovements])
 
-  return { movements, loading, error }
+  return {
+    movements,
+    loading,
+    error,
+    refetch: loadMovements,
+    removeOne,
+    removeMany,
+    clearByStatus,
+    clearAll,
+  }
 }

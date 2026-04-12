@@ -3,13 +3,84 @@ import { fetchOrders } from '../api/orders'
 import { IOrderRow } from '../types/order'
 import { supabase } from '../lib/supabase'
 
+function getOrderTime(order: IOrderRow) {
+  const raw = order?.created_at || order?.updated_at || ''
+  const time = raw ? new Date(raw).getTime() : 0
+  return Number.isNaN(time) ? 0 : time
+}
+
+function uniqueOrdersById(list: IOrderRow[]) {
+  const map = new Map<string, IOrderRow>()
+
+  for (const order of list) {
+    if (!order?.id) continue
+
+    const existing = map.get(order.id)
+
+    if (!existing) {
+      map.set(order.id, order)
+      continue
+    }
+
+    const existingTime = getOrderTime(existing)
+    const nextTime = getOrderTime(order)
+
+    if (nextTime >= existingTime) {
+      map.set(order.id, {
+        ...existing,
+        ...order,
+      })
+    }
+  }
+
+  return Array.from(map.values())
+}
+
+function sortOrders(list: IOrderRow[]) {
+  return [...list].sort((a, b) => {
+    const aTime = getOrderTime(a)
+    const bTime = getOrderTime(b)
+
+    if (aTime !== bTime) {
+      return bTime - aTime
+    }
+
+    return Number(b?.order_number || 0) - Number(a?.order_number || 0)
+  })
+}
+
+function normalizeOrders(list: IOrderRow[]) {
+  return sortOrders(uniqueOrdersById(Array.isArray(list) ? list : []))
+}
+
+function upsertOrder(list: IOrderRow[], order: IOrderRow) {
+  const next = [...list]
+  const index = next.findIndex((item) => item.id === order.id)
+
+  if (index === -1) {
+    return normalizeOrders([order, ...next])
+  }
+
+  next[index] = {
+    ...next[index],
+    ...order,
+  }
+
+  return normalizeOrders(next)
+}
+
+function removeOrder(list: IOrderRow[], id?: string) {
+  if (!id) return normalizeOrders(list)
+  return normalizeOrders(list.filter((item) => item.id !== id))
+}
+
 export function useAllOrders() {
   const [orders, setOrders] = useState<IOrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    let mounted = true
+    let isMounted = true
 
     const load = async () => {
       try {
@@ -18,27 +89,27 @@ export function useAllOrders() {
 
         const data = await fetchOrders()
 
-        if (mounted) {
-          setOrders(Array.isArray(data) ? data : [])
-        }
+        if (!isMounted) return
+
+        setOrders(normalizeOrders(Array.isArray(data) ? data : []))
       } catch (err: any) {
         console.error('LOAD ALL ORDERS ERROR:', err)
 
-        if (mounted) {
-          setError(err?.message || 'Не удалось загрузить заказы')
-          setOrders([])
-        }
+        if (!isMounted) return
+
+        setError(err?.message || 'Не удалось загрузить заказы')
+        setOrders([])
       } finally {
-        if (mounted) {
+        if (isMounted) {
           setLoading(false)
         }
       }
     }
 
-    load()
+    void load()
 
     const channel = supabase
-      .channel(`orders-all-realtime-${Math.random().toString(36).slice(2)}`)
+      .channel('orders-all-realtime')
       .on(
         'postgres_changes',
         {
@@ -47,46 +118,47 @@ export function useAllOrders() {
           table: 'orders',
         },
         (payload) => {
-          if (!mounted) return
+          if (!isMounted) return
 
           const eventType = payload.eventType
           const newRow = payload.new as IOrderRow | undefined
           const oldRow = payload.old as IOrderRow | undefined
 
           setOrders((prev) => {
-            let next = Array.isArray(prev) ? [...prev] : []
+            const safePrev = Array.isArray(prev) ? prev : []
 
             if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRow) {
-              const exists = next.some((item) => item.id === newRow.id)
-
-              if (exists) {
-                next = next.map((item) =>
-                  item.id === newRow.id ? newRow : item
-                )
-              } else {
-                next = [newRow, ...next]
-              }
+              return upsertOrder(safePrev, newRow)
             }
 
-            if (eventType === 'DELETE' && oldRow) {
-              next = next.filter((item) => item.id !== oldRow.id)
+            if (eventType === 'DELETE') {
+              return removeOrder(safePrev, oldRow?.id)
             }
 
-            return next.sort(
-              (a, b) =>
-                new Date(b.created_at).getTime() -
-                new Date(a.created_at).getTime()
-            )
+            return normalizeOrders(safePrev)
           })
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('ALL ORDERS CHANNEL STATUS:', status)
+
+        if (!isMounted) return
+
+        if (status === 'CHANNEL_ERROR') {
+          setError('Realtime connection error')
+        }
+      })
 
     return () => {
-      mounted = false
-      supabase.removeChannel(channel)
+      isMounted = false
+      void supabase.removeChannel(channel)
     }
   }, [])
 
-  return { orders, loading, error }
+  return {
+    orders,
+    loading,
+    error,
+    setOrders,
+  }
 }

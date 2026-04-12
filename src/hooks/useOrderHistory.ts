@@ -3,6 +3,14 @@ import { fetchHistoryOrders } from '../api/orders'
 import { IOrderRow } from '../types/order'
 import { supabase } from '../lib/supabase'
 
+function sortHistory(list: IOrderRow[]) {
+  return [...list].sort((a, b) => {
+    const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
+    return bTime - aTime
+  })
+}
+
 export function useOrderHistory() {
   const [history, setHistory] = useState<IOrderRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -18,16 +26,16 @@ export function useOrderHistory() {
 
         const data = await fetchHistoryOrders()
 
-        if (mounted) {
-          setHistory(Array.isArray(data) ? data : [])
-        }
+        if (!mounted) return
+
+        setHistory(sortHistory(Array.isArray(data) ? data : []))
       } catch (err: any) {
         console.error('LOAD ORDER HISTORY ERROR:', err)
 
-        if (mounted) {
-          setError(err?.message || 'Не удалось загрузить историю заказов')
-          setHistory([])
-        }
+        if (!mounted) return
+
+        setError(err?.message || 'Не удалось загрузить историю заказов')
+        setHistory([])
       } finally {
         if (mounted) {
           setLoading(false)
@@ -38,7 +46,7 @@ export function useOrderHistory() {
     load()
 
     const channel = supabase
-      .channel(`orders-history-realtime-${Math.random().toString(36).slice(2)}`)
+      .channel('orders-history-realtime')
       .on(
         'postgres_changes',
         {
@@ -59,45 +67,38 @@ export function useOrderHistory() {
             if (eventType === 'INSERT' && newRow) {
               if (newRow.status !== 'completed') return next
 
-              const exists = next.some((item) => item.id === newRow.id)
-              if (exists) {
-                next = next.map((item) =>
-                  item.id === newRow.id ? newRow : item
-                )
+              const index = next.findIndex((item) => item.id === newRow.id)
+
+              if (index >= 0) {
+                next[index] = newRow
               } else {
-                next = [newRow, ...next]
+                next.unshift(newRow)
               }
             }
 
             if (eventType === 'UPDATE' && newRow) {
-              if (newRow.status === 'completed') {
-                const exists = next.some((item) => item.id === newRow.id)
+              const index = next.findIndex((item) => item.id === newRow.id)
 
-                if (exists) {
-                  next = next.map((item) =>
-                    item.id === newRow.id ? newRow : item
-                  )
+              if (newRow.status === 'completed') {
+                if (index >= 0) {
+                  next[index] = newRow
                 } else {
-                  next = [newRow, ...next]
+                  next.unshift(newRow)
                 }
               } else {
                 next = next.filter((item) => item.id !== newRow.id)
               }
             }
 
-            if (eventType === 'DELETE' && oldRow) {
+            if (eventType === 'DELETE' && oldRow?.id) {
               next = next.filter((item) => item.id !== oldRow.id)
             }
 
-            return next.sort(
-              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            )
+            return sortHistory(next)
           })
         }
       )
-      .subscribe((status) => {
-        console.log('ORDER HISTORY CHANNEL STATUS:', status)
-      })
+      .subscribe()
 
     return () => {
       mounted = false
@@ -105,5 +106,5 @@ export function useOrderHistory() {
     }
   }, [])
 
-  return { history, loading, error }
+  return { history, loading, error, setHistory }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchActiveOrders, updateOrderStatus } from "../../api/orders";
+import { fetchActiveOrders, updateOrderWorkflow } from "../../api/orders";
 import { IOrderRow, TOrderStatus } from "../../types/order";
 
 const kitchenStatuses: TOrderStatus[] = ["new", "preparing", "ready"];
@@ -26,7 +26,7 @@ function KitchenAssemblyPage() {
   );
 
   const handleStatusChange = async (id: string, status: TOrderStatus) => {
-    const updated = await updateOrderStatus(id, status);
+    const updated = await updateOrderWorkflow(id, { status });
 
     if (updated.status === "completed") {
       setOrders((prev) => prev.filter((item) => item.id !== id));

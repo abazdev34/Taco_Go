@@ -1,40 +1,38 @@
-export type TCategoryType = "kitchen" | "assembly";
+export type TUnitType = "шт" | "кг" | "л";
 
-export interface ICategoryRow {
+export interface ITechCardIngredientRow {
   id: string;
+  tech_card_id: string;
   name: string;
-  image: string | null;
-  sort_order: number | null;
+  unit: TUnitType;
+  quantity: number;
+  unit_price: number;
+  percent: number;
+  remainder_percent: number;
+  total: number;
   created_at?: string;
-  type?: TCategoryType | null;
 }
 
-export interface ICategoryPayload {
-  name: string;
-  image?: string | null;
-  sort_order: number;
-  type: TCategoryType;
-}
-
-export interface IMenuItemRow {
+export interface ITechCardRow {
   id: string;
-  title: string;
-  description: string | null;
-  image: string | null;
-  price: number;
-  weight_g: number;
-  sort_order: number | null;
+  menu_item_id: string;
+  total_cost: number;
+  total_percent: number;
   created_at?: string;
-  category: string;
-  categories?: ICategoryRow | null;
+  ingredients?: ITechCardIngredientRow[];
 }
 
-export interface IMenuItemPayload {
-  title: string;
-  description?: string | null;
-  image?: string | null;
-  price: number;
-  weight_g: number;
-  sort_order: number;
-  category: string;
+export interface ICreateTechCardPayload {
+  menu_item_id: string;
+  total_cost: number;
+  total_percent: number;
+  ingredients: {
+    name: string;
+    unit: TUnitType;
+    quantity: number;
+    unit_price: number;
+    percent: number;
+    remainder_percent: number;
+    total: number;
+  }[];
 }
