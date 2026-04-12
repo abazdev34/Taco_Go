@@ -1,11 +1,93 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useOrders } from '../../hooks/useOrders'
 import { updateOrderWorkflow } from '../../api/orders'
 import '../Navbar/monitor.scss'
 import { IMenuItem, IOrderRow } from '../../types/order'
+import { getDailyOrderNumber } from '../../utils/orderNumber'
 
 const KitchenMonitor = () => {
   const { orders = [], loading, error } = useOrders()
+
+  const audioUnlockedRef = useRef(false)
+  const alertIntervalRef = useRef<number | null>(null)
+  const prevNewIdsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      audioUnlockedRef.current = true
+      window.removeEventListener('click', unlockAudio)
+      window.removeEventListener('touchstart', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
+
+    window.addEventListener('click', unlockAudio)
+    window.addEventListener('touchstart', unlockAudio)
+    window.addEventListener('keydown', unlockAudio)
+
+    return () => {
+      window.removeEventListener('click', unlockAudio)
+      window.removeEventListener('touchstart', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (alertIntervalRef.current) {
+        window.clearInterval(alertIntervalRef.current)
+      }
+    }
+  }, [])
+
+  const playKitchenAlert = () => {
+    try {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext
+
+      if (!AudioContextClass) return
+      if (!audioUnlockedRef.current) return
+
+      const audioCtx = new AudioContextClass()
+
+      const gain = audioCtx.createGain()
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime)
+
+      const osc1 = audioCtx.createOscillator()
+      const osc2 = audioCtx.createOscillator()
+
+      osc1.type = 'sawtooth'
+      osc2.type = 'square'
+
+      osc1.frequency.setValueAtTime(900, audioCtx.currentTime)
+      osc2.frequency.setValueAtTime(1200, audioCtx.currentTime)
+
+      osc1.connect(gain)
+      osc2.connect(gain)
+      gain.connect(audioCtx.destination)
+
+      osc1.start()
+      osc2.start()
+
+      osc1.stop(audioCtx.currentTime + 0.4)
+      osc2.stop(audioCtx.currentTime + 0.4)
+
+      osc2.onended = () => {
+        void audioCtx.close()
+      }
+    } catch (e) {
+      console.error('ALERT ERROR', e)
+    }
+  }
+
+  const getDaySequence = (targetOrder: IOrderRow) => {
+    if (targetOrder.daily_order_number) {
+      return String(targetOrder.daily_order_number).padStart(3, '0')
+    }
+
+    return getDailyOrderNumber(targetOrder, orders || [])
+  }
 
   const kitchenRelevantOrders = useMemo(() => {
     return (orders || [])
@@ -17,6 +99,11 @@ const KitchenMonitor = () => {
         )
 
         if (!hasKitchen) return false
+
+        // Клиент заказ кассир кабыл ала электе кухняга чыкпаш керек
+        if (order.source === 'client' && order.status === 'pending') {
+          return false
+        }
 
         return (
           order.kitchen_status === 'new' ||
@@ -38,7 +125,9 @@ const KitchenMonitor = () => {
           return bPriority - aPriority
         }
 
-        return Number(b.order_number) - Number(a.order_number)
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+        return bTime - aTime
       })
   }, [orders])
 
@@ -59,6 +148,32 @@ const KitchenMonitor = () => {
     () => kitchenRelevantOrders.filter((order) => order.kitchen_status === 'ready'),
     [kitchenRelevantOrders]
   )
+
+  useEffect(() => {
+    const currentNewIds = newOrders.map((order) => order.id)
+    const hasNewOrders = currentNewIds.length > 0
+
+    const arrivedNewOrders = currentNewIds.some(
+      (id) => !prevNewIdsRef.current.includes(id)
+    )
+
+    if (arrivedNewOrders) {
+      playKitchenAlert()
+    }
+
+    if (hasNewOrders && !alertIntervalRef.current) {
+      alertIntervalRef.current = window.setInterval(() => {
+        playKitchenAlert()
+      }, 1500)
+    }
+
+    if (!hasNewOrders && alertIntervalRef.current) {
+      window.clearInterval(alertIntervalRef.current)
+      alertIntervalRef.current = null
+    }
+
+    prevNewIdsRef.current = currentNewIds
+  }, [newOrders])
 
   const getKitchenItems = (order: IOrderRow): IMenuItem[] => {
     return (order.items || []).filter(
@@ -95,17 +210,14 @@ const KitchenMonitor = () => {
 
     if (!hasAssembly) return 'Сборка не требуется'
     if (order.kitchen_status === 'ready') return 'Передано в сборку'
-    if (order.kitchen_status === 'preparing') return 'Заказ виден в сборке'
-    return 'Появится после принятия'
+    if (order.kitchen_status === 'preparing') return 'Ожидает кухню'
+    return 'Появится после готовности кухни'
   }
 
   const handleKitchenStart = async (order: IOrderRow) => {
     try {
-      const hasAssembly = getAssemblyItems(order).length > 0
-
       await updateOrderWorkflow(order.id, {
         kitchen_status: 'preparing',
-        assembly_status: hasAssembly ? 'new' : 'skipped',
         status: 'preparing',
       })
     } catch (err) {
@@ -120,16 +232,8 @@ const KitchenMonitor = () => {
 
       await updateOrderWorkflow(order.id, {
         kitchen_status: 'ready',
-        assembly_status: hasAssembly
-          ? order.assembly_status === 'ready'
-            ? 'ready'
-            : 'new'
-          : 'skipped',
-        status: hasAssembly
-          ? order.assembly_status === 'ready'
-            ? 'ready'
-            : 'preparing'
-          : 'ready',
+        assembly_status: hasAssembly ? 'new' : 'skipped',
+        status: hasAssembly ? 'preparing' : 'ready',
       })
     } catch (err) {
       console.error('Ошибка завершения кухни:', err)
@@ -156,7 +260,7 @@ const KitchenMonitor = () => {
       >
         <div className='order-card__header'>
           <div>
-            <h2>Заказ №{order.order_number}</h2>
+            <h2>Заказ №{getDaySequence(order)}</h2>
             <p className='order-card__time'>
               Время: {formatOrderTime(order.created_at)}
             </p>

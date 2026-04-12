@@ -1,35 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import '../Navbar/monitor.scss'
 import { useOrders } from '../../hooks/useOrders'
+import { IOrderRow } from '../../types/order'
+import {
+  buildDailyNumberOrders,
+  getDailyOrderNumber,
+} from '../../utils/orderNumber'
+import {
+  canShowInHallMonitor,
+  getOrderPlaceValue,
+} from '../../utils/orderHelpers'
 
-type OrderStatus = 'new' | 'preparing' | 'ready' | string
+const uniqueOrdersById = <T extends { id: string }>(orders: T[]) => {
+  const map = new Map<string, T>()
 
-type Order = {
-  id: string
-  order_number: number
-  status: OrderStatus
-  created_at?: string
-  order_place?: 'hall' | 'takeaway' | string | null
-  order_type?: 'hall' | 'takeaway' | string | null
-  comment?: string | null
+  orders.forEach((order) => {
+    map.set(order.id, order)
+  })
+
+  return Array.from(map.values())
 }
 
 const HallMonitor = () => {
   const { orders, loading, error } = useOrders() as {
-    orders?: Order[]
+    orders?: IOrderRow[]
     loading: boolean
     error: string
   }
 
   const [highlightedIds, setHighlightedIds] = useState<string[]>([])
-  const [fullscreen, setFullscreen] = useState(false)
-
   const prevReadyIdsRef = useRef<string[]>([])
   const audioUnlockedRef = useRef(false)
 
   const safeOrders = useMemo(() => {
-    return Array.isArray(orders) ? orders : []
+    return Array.isArray(orders) ? uniqueOrdersById(orders) : []
   }, [orders])
+
+  const numberingOrders = useMemo(() => {
+    return buildDailyNumberOrders(safeOrders)
+  }, [safeOrders])
+
+  const getDisplayNumber = (order: IOrderRow) => {
+    if (order.daily_order_number) {
+      return String(order.daily_order_number).padStart(3, '0')
+    }
+
+    return getDailyOrderNumber(order, numberingOrders)
+  }
 
   useEffect(() => {
     const unlockAudio = () => {
@@ -50,53 +67,27 @@ const HallMonitor = () => {
     }
   }, [])
 
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      setFullscreen(Boolean(document.fullscreenElement))
-    }
-
-    document.addEventListener('fullscreenchange', onFullscreenChange)
-    return () =>
-      document.removeEventListener('fullscreenchange', onFullscreenChange)
-  }, [])
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen()
-      } else {
-        await document.exitFullscreen()
-      }
-    } catch (err) {
-      console.error('FULLSCREEN ERROR:', err)
-    }
-  }
-
-  const getOrderPlace = (order: Order) => {
-    const raw = order.order_place || order.order_type
-    if (raw === 'hall') return 'hall'
-    if (raw === 'takeaway') return 'takeaway'
-
-    const text = (order.comment || '').toLowerCase()
-    if (text.includes('тип заказа: здесь')) return 'hall'
-    if (text.includes('тип заказа: с собой')) return 'takeaway'
-    return 'hall'
-  }
-
   const readyOrders = useMemo(() => {
     return safeOrders
-      .filter((order) => order.status === 'ready' && getOrderPlace(order) === 'hall')
-      .sort((a, b) => b.order_number - a.order_number)
+      .filter(
+        (order) =>
+          order.status === 'ready' && getOrderPlaceValue(order) === 'hall'
+      )
+      .sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+        return bTime - aTime
+      })
   }, [safeOrders])
 
   const preparingOrders = useMemo(() => {
     return safeOrders
-      .filter(
-        (order) =>
-          (order.status === 'new' || order.status === 'preparing') &&
-          getOrderPlace(order) === 'hall'
-      )
-      .sort((a, b) => b.order_number - a.order_number)
+      .filter((order) => canShowInHallMonitor(order) && order.status !== 'ready')
+      .sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+        return bTime - aTime
+      })
   }, [safeOrders])
 
   const playReadySound = () => {
@@ -144,8 +135,8 @@ const HallMonitor = () => {
       oscillator.onended = () => {
         void audioCtx.close()
       }
-    } catch (soundError) {
-      console.error('Sound playback error:', soundError)
+    } catch (err) {
+      console.error('Sound playback error:', err)
     }
   }
 
@@ -181,85 +172,77 @@ const HallMonitor = () => {
     readyOrders.length > 10 ? [...readyOrders, ...readyOrders] : readyOrders
 
   return (
-    <div className='monitor-page hall-theme'>
-      <div className='tv-toolbar'>
-        <button className='tv-toolbar__btn' onClick={toggleFullscreen}>
-          {fullscreen ? 'Минимизировать' : 'На весь экран'}
-        </button>
-      </div>
+    <div className='hall-clean-tv'>
+      {error && <div className='hall-clean-tv__error'>{error}</div>}
 
-      <div className='tv-board'>
-        {error && <div className='error-box'>{error}</div>}
+      <div className='hall-clean-tv__layout'>
+        <section className='clean-column clean-column--preparing'>
+          <div className='clean-column__head'>
+            <h2>Готовится</h2>
+            <span>{preparingOrders.length}</span>
+          </div>
 
-        <div className='tv-board__layout'>
-          <section className='tv-column tv-column--preparing'>
-            <div className='tv-column__head'>
-              <h2>Готовится</h2>
-              <span>{preparingOrders.length}</span>
-            </div>
-
-            <div className='tv-column__body'>
-              {loading ? (
-                <div className='empty-box large'>Загрузка...</div>
-              ) : preparingOrders.length === 0 ? (
-                <div className='empty-box large'>—</div>
-              ) : (
-                <div
-                  className={`tv-scroll ${
-                    preparingOrders.length > 10 ? 'tv-scroll--animated' : ''
-                  }`}
-                >
-                  <div className='tv-grid'>
-                    {preparingLoopedOrders.map((order, index) => (
-                      <div
-                        className='tv-number tv-number--preparing'
-                        key={`preparing-${order.id}-${index}`}
-                      >
-                        {order.order_number}
-                      </div>
-                    ))}
-                  </div>
+          <div className='clean-column__body'>
+            {loading ? (
+              <div className='clean-empty'>Загрузка...</div>
+            ) : preparingOrders.length === 0 ? (
+              <div className='clean-empty'>—</div>
+            ) : (
+              <div
+                className={`clean-scroll ${
+                  preparingOrders.length > 10 ? 'clean-scroll--animated' : ''
+                }`}
+              >
+                <div className='clean-grid'>
+                  {preparingLoopedOrders.map((order, index) => (
+                    <div
+                      className='clean-number clean-number--preparing'
+                      key={`preparing-${order.id}-${index}`}
+                    >
+                      {getDisplayNumber(order)}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          </section>
+              </div>
+            )}
+          </div>
+        </section>
 
-          <section className='tv-column tv-column--ready'>
-            <div className='tv-column__head'>
-              <h2>Готов</h2>
-              <span>{readyOrders.length}</span>
-            </div>
+        <section className='clean-column clean-column--ready'>
+          <div className='clean-column__head'>
+            <h2>Готов</h2>
+            <span>{readyOrders.length}</span>
+          </div>
 
-            <div className='tv-column__body'>
-              {loading ? (
-                <div className='empty-box large'>Загрузка...</div>
-              ) : readyOrders.length === 0 ? (
-                <div className='empty-box large'>—</div>
-              ) : (
-                <div
-                  className={`tv-scroll ${
-                    readyOrders.length > 10 ? 'tv-scroll--animated' : ''
-                  }`}
-                >
-                  <div className='tv-grid'>
-                    {readyLoopedOrders.map((order, index) => (
-                      <div
-                        className={`tv-number tv-number--ready ${
-                          highlightedIds.includes(order.id)
-                            ? 'tv-number--pop'
-                            : ''
-                        }`}
-                        key={`ready-${order.id}-${index}`}
-                      >
-                        {order.order_number}
-                      </div>
-                    ))}
-                  </div>
+          <div className='clean-column__body'>
+            {loading ? (
+              <div className='clean-empty'>Загрузка...</div>
+            ) : readyOrders.length === 0 ? (
+              <div className='clean-empty'>—</div>
+            ) : (
+              <div
+                className={`clean-scroll ${
+                  readyOrders.length > 10 ? 'clean-scroll--animated' : ''
+                }`}
+              >
+                <div className='clean-grid'>
+                  {readyLoopedOrders.map((order, index) => (
+                    <div
+                      className={`clean-number clean-number--ready ${
+                        highlightedIds.includes(order.id)
+                          ? 'clean-number--pop'
+                          : ''
+                      }`}
+                      key={`ready-${order.id}-${index}`}
+                    >
+                      {getDisplayNumber(order)}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          </section>
-        </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   )
