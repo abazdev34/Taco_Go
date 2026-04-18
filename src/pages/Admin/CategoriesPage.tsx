@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   createCategory,
   deleteCategory,
@@ -26,10 +26,11 @@ function CategoriesPage() {
 
     try {
       const data = await fetchCategories();
-      setCategories(data);
+      setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("CATEGORY LOAD ERROR:", error);
       setErrorMessage("Не удалось загрузить категории");
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -178,6 +179,7 @@ function CategoriesPage() {
 
                 <div style={styles.actions}>
                   <button
+                    type="button"
                     style={styles.editButton}
                     onClick={() => handleEdit(item)}
                     disabled={saving || deletingId === item.id}
@@ -186,6 +188,7 @@ function CategoriesPage() {
                   </button>
 
                   <button
+                    type="button"
                     style={styles.deleteButton}
                     onClick={() => handleDelete(item.id)}
                     disabled={saving || deletingId === item.id}
@@ -255,7 +258,12 @@ function CategoriesPage() {
         {errorMessage && <div style={styles.errorBox}>{errorMessage}</div>}
 
         <div style={styles.buttonRow}>
-          <button style={styles.button} onClick={handleSubmit} disabled={saving}>
+          <button
+            type="button"
+            style={styles.button}
+            onClick={handleSubmit}
+            disabled={saving}
+          >
             {saving
               ? "Сохранение..."
               : editingId
@@ -265,6 +273,7 @@ function CategoriesPage() {
 
           {editingId && (
             <button
+              type="button"
               style={styles.cancelButton}
               onClick={resetForm}
               disabled={saving}
@@ -295,7 +304,7 @@ function CategoriesPage() {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     padding: "20px",
   },

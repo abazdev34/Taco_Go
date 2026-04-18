@@ -1,7 +1,15 @@
-export const sendEmailReport = (subject: string, body: string) => {
-	const mailtoLink = `mailto:?subject=${encodeURIComponent(
-		subject
-	)}&body=${encodeURIComponent(body)}`
+export const sendEmailReport = (subject: string, body: string, to = '') => {
+	const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+		to
+	)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 
-	window.location.href = mailtoLink
+	const mailtoLink = `mailto:${encodeURIComponent(
+		to
+	)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+	const popup = window.open(gmailLink, '_blank', 'noopener,noreferrer')
+
+	if (!popup) {
+		window.location.href = mailtoLink
+	}
 }

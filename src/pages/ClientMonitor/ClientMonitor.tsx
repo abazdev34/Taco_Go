@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createOrder } from '../../api/orders'
 import { fetchMenuItems } from '../../api/menuItems'
+import { useAuth } from '../../context/AuthContext'
 import { formatPrice } from '../../utils/currency'
 import { buildOrderComment } from '../../utils/orderHelpers'
 import {
@@ -16,6 +17,7 @@ type TClientCategory = {
   name?: string
   title?: string
   sort_order?: number | null
+  type?: string
 }
 
 type TClientMenuItem = IMenuItem & {
@@ -26,6 +28,8 @@ type TClientMenuItem = IMenuItem & {
   photo?: string | null
   category?: string
   categories?: TClientCategory | null
+  is_active?: boolean
+  sort_order?: number | null
 }
 
 const DEFAULT_IMAGE =
@@ -44,6 +48,8 @@ const formatOrderNumber = (value?: number | null) =>
   String(value || 0).padStart(3, '0')
 
 const ClientMonitor = () => {
+  const { loading: authLoading } = useAuth()
+
   const [menuItems, setMenuItems] = useState<TClientMenuItem[]>([])
   const [cart, setCart] = useState<TClientMenuItem[]>([])
   const [comment, setComment] = useState('')
@@ -52,14 +58,20 @@ const ClientMonitor = () => {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
+  const [error, setError] = useState('')
 
   const [successOpen, setSuccessOpen] = useState(false)
   const [lastOrderNumber, setLastOrderNumber] = useState('001')
 
   useEffect(() => {
+    if (authLoading) return
+
+    let isMounted = true
+
     const loadMenu = async () => {
       try {
         setLoading(true)
+        setError('')
 
         const data = await fetchMenuItems()
 
@@ -76,20 +88,29 @@ const ClientMonitor = () => {
             return (a.sort_order ?? 0) - (b.sort_order ?? 0)
           })
 
+        if (!isMounted) return
         setMenuItems(prepared)
-      } catch (e) {
+      } catch (e: any) {
         console.error('CLIENT MENU LOAD ERROR:', e)
+        if (!isMounted) return
+        setError(e?.message || 'Не удалось загрузить меню')
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     void loadMenu()
-  }, [])
+
+    return () => {
+      isMounted = false
+    }
+  }, [authLoading])
 
   const categories = useMemo(() => {
     const list = menuItems
-      .map((item) => ({
+      .map(item => ({
         id: item.categories?.id || getItemCategoryName(item),
         name: getItemCategoryName(item),
         sort_order: item.categories?.sort_order ?? 0,
@@ -98,7 +119,7 @@ const ClientMonitor = () => {
 
     const unique = list.filter(
       (category, index, arr) =>
-        arr.findIndex((item) => item.id === category.id) === index
+        arr.findIndex(item => item.id === category.id) === index
     )
 
     return [{ id: 'all', name: 'Все' }, ...unique]
@@ -107,7 +128,7 @@ const ClientMonitor = () => {
   const filteredMenuItems = useMemo(() => {
     if (activeCategory === 'all') return menuItems
 
-    return menuItems.filter((item) => {
+    return menuItems.filter(item => {
       const categoryId = item.categories?.id || getItemCategoryName(item)
       return categoryId === activeCategory
     })
@@ -122,11 +143,11 @@ const ClientMonitor = () => {
   }, [cart])
 
   const addToCart = (item: TClientMenuItem) => {
-    setCart((prev) => {
-      const existing = prev.find((p) => p.id === item.id)
+    setCart(prev => {
+      const existing = prev.find(p => p.id === item.id)
 
       if (existing) {
-        return prev.map((p) =>
+        return prev.map(p =>
           p.id === item.id ? { ...p, quantity: (p.quantity || 1) + 1 } : p
         )
       }
@@ -136,12 +157,12 @@ const ClientMonitor = () => {
   }
 
   const removeFromCart = (item: TClientMenuItem) => {
-    setCart((prev) =>
+    setCart(prev =>
       prev
-        .map((p) =>
+        .map(p =>
           p.id === item.id ? { ...p, quantity: (p.quantity || 1) - 1 } : p
         )
-        .filter((p) => (p.quantity || 0) > 0)
+        .filter(p => (p.quantity || 0) > 0)
     )
   }
 
@@ -194,6 +215,10 @@ const ClientMonitor = () => {
     }
   }
 
+  if (authLoading) {
+    return <div className='client-empty client-panel'>Загрузка...</div>
+  }
+
   if (successOpen) {
     return (
       <div className='client-success-page'>
@@ -227,7 +252,7 @@ const ClientMonitor = () => {
           </div>
 
           <div className='client-category-list'>
-            {categories.map((category) => (
+            {categories.map(category => (
               <button
                 key={category.id}
                 type='button'
@@ -258,11 +283,13 @@ const ClientMonitor = () => {
 
           {loading ? (
             <div className='client-empty client-panel'>Загрузка...</div>
+          ) : error ? (
+            <div className='client-empty client-panel'>{error}</div>
           ) : filteredMenuItems.length === 0 ? (
             <div className='client-empty client-panel'>Меню пустое</div>
           ) : (
             <div className='client-menu-grid'>
-              {filteredMenuItems.map((item) => (
+              {filteredMenuItems.map(item => (
                 <article key={item.id} className='client-menu-card'>
                   <div className='client-menu-image-wrap'>
                     <img
@@ -389,7 +416,7 @@ const ClientMonitor = () => {
               {cart.length === 0 ? (
                 <div className='client-empty'>Корзина пуста</div>
               ) : (
-                cart.map((item) => (
+                cart.map(item => (
                   <div key={item.id} className='client-cart-item'>
                     <div className='client-cart-item-info'>
                       <h4>{item.title}</h4>
@@ -414,7 +441,7 @@ const ClientMonitor = () => {
               className='client-comment'
               placeholder='Комментарий к заказу'
               value={comment}
-              onChange={(e) => setComment(e.currentTarget.value)}
+              onChange={e => setComment(e.currentTarget.value)}
               rows={4}
             />
           </div>

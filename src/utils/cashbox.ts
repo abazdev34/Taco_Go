@@ -1,38 +1,45 @@
-import { IOrderRow } from '../types/order'
-import { ICashMovementRow } from '../api/cashMovements'
+export const calculateCashboxAmount = (orders: any[], movements: any[]) => {
+	const normalizedOrders = Array.isArray(orders) ? orders : []
+	const normalizedMovements = Array.isArray(movements) ? movements : []
 
-export function calculateCashboxAmount(
-  orders: IOrderRow[],
-  movements: ICashMovementRow[]
-) {
-  const cashOrdersTotal = (Array.isArray(orders) ? orders : []).reduce(
-    (acc, order) => {
-      if (order.payment_method !== 'cash') return acc
+	const cashOrdersTotal = normalizedOrders.reduce((sum, order) => {
+		const payment = String(order.payment_method || '').toLowerCase()
+		const isCash =
+			payment.includes('cash') ||
+			payment.includes('нал') ||
+			payment.includes('наличные')
 
-      const paid = Number(order.paid_amount || 0)
-      const change = Number(order.change_amount || 0)
+		return isCash ? sum + Number(order.total || 0) : sum
+	}, 0)
 
-      if (paid > 0) {
-        return acc + (paid - change)
-      }
+	const onlineOrdersTotal = normalizedOrders.reduce((sum, order) => {
+		const payment = String(order.payment_method || '').toLowerCase()
+		const isOnline =
+			payment.includes('online') ||
+			payment.includes('card') ||
+			payment.includes('карта') ||
+			payment.includes('безнал')
 
-      return acc + Number(order.total || 0)
-    },
-    0
-  )
+		return isOnline ? sum + Number(order.total || 0) : sum
+	}, 0)
 
-  const approvedIn = (Array.isArray(movements) ? movements : [])
-    .filter((item) => item.status === 'approved' && item.movement_type === 'in')
-    .reduce((acc, item) => acc + Number(item.amount || 0), 0)
+	const approvedIn = normalizedMovements
+		.filter(
+			(item) => item?.status === 'approved' && item?.movement_type === 'in'
+		)
+		.reduce((acc, item) => acc + Number(item.amount || 0), 0)
 
-  const approvedOut = (Array.isArray(movements) ? movements : [])
-    .filter((item) => item.status === 'approved' && item.movement_type === 'out')
-    .reduce((acc, item) => acc + Number(item.amount || 0), 0)
+	const approvedOut = normalizedMovements
+		.filter(
+			(item) => item?.status === 'approved' && item?.movement_type === 'out'
+		)
+		.reduce((acc, item) => acc + Number(item.amount || 0), 0)
 
-  return {
-    cashOrdersTotal,
-    approvedIn,
-    approvedOut,
-    finalAmount: cashOrdersTotal + approvedIn - approvedOut,
-  }
+	return {
+		cashOrdersTotal,
+		onlineOrdersTotal,
+		approvedIn,
+		approvedOut,
+		finalAmount: approvedIn - approvedOut,
+	}
 }

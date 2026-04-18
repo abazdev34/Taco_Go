@@ -12,21 +12,24 @@ type DayReportData = {
 }
 
 const formatRub = (value: number) => {
-	return new Intl.NumberFormat("ru-RU", {
-		style: "currency",
-		currency: "RUB",
+	return new Intl.NumberFormat('ru-RU', {
+		style: 'currency',
+		currency: 'RUB',
 		maximumFractionDigits: 0,
 	}).format(value)
 }
 
 export const generateDayReportPdf = (report: DayReportData) => {
-	const reportWindow = window.open("", "_blank", "width=1000,height=800")
+	const reportWindow = window.open('', '_blank', 'width=1000,height=800')
 
-	if (!reportWindow) return
+	if (!reportWindow) {
+		alert('Браузер заблокировал окно печати. Разрешите pop-up.')
+		return
+	}
 
 	const rows = report.itemsSummary
 		.map(
-			(item) => `
+			item => `
 				<tr>
 					<td>${item.title}</td>
 					<td>${item.quantity} шт</td>
@@ -34,7 +37,7 @@ export const generateDayReportPdf = (report: DayReportData) => {
 				</tr>
 			`
 		)
-		.join("")
+		.join('')
 
 	reportWindow.document.write(`
 		<!DOCTYPE html>
@@ -136,6 +139,52 @@ export const generateDayReportPdf = (report: DayReportData) => {
 				</div>
 			</div>
 
+			<button class="print-btn" onclick="window.print()">Печать / Сохранить в PDF</button>
+		</body>
+		</html>
+	`)
+
+	reportWindow.document.close()
+}
+
+export const generatePDF = (element: HTMLElement) => {
+	const reportWindow = window.open('', '_blank', 'width=1000,height=800')
+
+	if (!reportWindow) {
+		alert('Браузер заблокировал окно печати. Разрешите pop-up.')
+		return
+	}
+
+	reportWindow.document.write(`
+		<!DOCTYPE html>
+		<html lang="ru">
+		<head>
+			<meta charset="UTF-8" />
+			<title>PDF</title>
+			<style>
+				body {
+					font-family: Arial, sans-serif;
+					padding: 20px;
+				}
+				.print-btn {
+					margin-top: 20px;
+					padding: 12px 16px;
+					border: none;
+					border-radius: 10px;
+					background: #111827;
+					color: white;
+					font-weight: bold;
+					cursor: pointer;
+				}
+				@media print {
+					.print-btn {
+						display: none;
+					}
+				}
+			</style>
+		</head>
+		<body>
+			${element.outerHTML}
 			<button class="print-btn" onclick="window.print()">Печать / Сохранить в PDF</button>
 		</body>
 		</html>

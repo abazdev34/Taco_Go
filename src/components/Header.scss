@@ -1,0 +1,63 @@
+.header {
+  height: 70px;
+  background: #111;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.nav {
+  display: flex;
+  gap: 20px;
+
+  a {
+    color: #ccc;
+    text-decoration: none;
+    font-weight: 500;
+    position: relative;
+
+    &:hover {
+      color: #fff;
+    }
+
+    &.active {
+      color: #4cafef;
+    }
+  }
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-role {
+  background: #222;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.logout-btn {
+  background: #d92d20;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+
+  &:hover {
+    background: #b42318;
+  }
+}

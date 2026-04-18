@@ -1,102 +1,104 @@
-import { Link, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from "react-router-dom";
 
-import CashierMonitor from './pages/CashierMonitor/CashierMonitor'
-import ClientMonitor from './pages/ClientMonitor/ClientMonitor'
-import HallMonitor from './pages/HallMonitor/HallMonitor'
-import HistoryMonitor from './pages/HistoryMonitor/HistoryMonitor'
-import KitchenMonitor from './pages/KitchenMonitor/KitchenMonitor'
+import Layout from "./components/Layout";
+import RoleRoute from "./components/RoleRoute";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import PendingApprovalPage from "./pages/PendingApprovalPage";
 
-import AdminDashboardPage from './pages/Admin/AdminDashboardPage'
-import AdminLayout from './pages/Admin/AdminLayout'
-import AdminOrdersPage from './pages/Admin/AdminOrdersPage'
-import CategoriesPage from './pages/Admin/CategoriesPage'
-import KitchenAssemblyPage from './pages/Admin/KitchenAssemblyPage'
-import MenuItemsPage from './pages/Admin/MenuItemsPage'
-import RolesPage from './pages/Admin/RolesPage'
-import TechCardsPage from './pages/Admin/TechCardsPage'
-import AdminCashMonitor from './pages/AdminCashMonitor/AdminCashMonitor'
-import AssemblyMonitor from './pages/AssemblyMonitor/AssemblyMonitor'
+import ClientMonitor from "./pages/ClientMonitor/ClientMonitor";
+import CashierMonitor from "./pages/CashierMonitor/CashierMonitor";
+import KitchenMonitor from "./pages/KitchenMonitor/KitchenMonitor";
+import HallMonitor from "./pages/HallMonitor/HallMonitor";
+import AssemblyMonitor from "./pages/AssemblyMonitor/AssemblyMonitor";
+import HistoryPage from "./pages/History/HistoryPage";
 
-function Layout() {
-	return (
-		<div>
-			<nav style={styles.nav}>
-				<Link style={styles.link} to='/'>
-					Клиент
-				</Link>
-				<Link style={styles.link} to='/cashier'>
-					Кассир
-				</Link>
-				<Link style={styles.link} to='/kitchen'>
-					Кухня
-				</Link>
-				<Link style={styles.link} to='/monitor'>
-					зал
-				</Link>
-				<Link style={styles.link} to='/history'>
-					История
-				</Link>
-				<Link style={styles.link} to='/admin'>
-					Админ
-				</Link>
-				<Link style={styles.link} to='/assembly'>
-					Сборка
-				</Link>
-				<Link style={styles.link} to='/adminCash'>
-          Касса админ
-				</Link>
-			</nav>
+import AdminLayout from "./pages/Admin/AdminLayout";
+import AdminOrdersPage from "./pages/Admin/AdminOrdersPage";
+import CategoriesPage from "./pages/Admin/CategoriesPage";
+import MenuItemsPage from "./pages/Admin/MenuItemsPage";
+import AdminAccessRequestsPage from "./pages/Admin/AdminAccessRequestsPage";
+import AdminCreateStaffPage from "./pages/Admin/AdminCreateStaffPage";
+import AdminUsersPage from "./pages/Admin/AdminUsersPage";
 
-			<main style={styles.main}>
-				<Outlet />
-			</main>
-		</div>
-	)
+function HomeRedirect() {
+  return <Navigate to="/client" replace />;
 }
 
 function App() {
-	return (
-		<Routes>
-			<Route path='/adminCash' element={<AdminCashMonitor />} />
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/pending-approval" element={<PendingApprovalPage />} />
 
-			<Route path='/' element={<Layout />}>
-				<Route index element={<ClientMonitor />} />
-				<Route path='cashier' element={<CashierMonitor />} />
-				<Route path='kitchen' element={<KitchenMonitor />} />
-				<Route path='monitor' element={<HallMonitor />} />
-				<Route path='history' element={<HistoryMonitor />} />
-				<Route path='assembly' element={<AssemblyMonitor />} />
+      <Route path="/" element={<Layout />}>
+        <Route index element={<HomeRedirect />} />
+        <Route path="client" element={<ClientMonitor />} />
 
-				<Route path='admin' element={<AdminLayout />}>
-					<Route index element={<AdminDashboardPage />} />
-					<Route path='orders' element={<AdminOrdersPage />} />
-					<Route path='kitchen-assembly' element={<KitchenAssemblyPage />} />
-					<Route path='categories' element={<CategoriesPage />} />
-					<Route path='menu-items' element={<MenuItemsPage />} />
-					<Route path='tech-cards' element={<TechCardsPage />} />
-					<Route path='roles' element={<RolesPage />} />
-				</Route>
-			</Route>
-		</Routes>
-	)
+        <Route
+          path="cashier"
+          element={
+            <RoleRoute allowedRoles={["cashier", "admin"]}>
+              <CashierMonitor />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="kitchen"
+          element={
+            <RoleRoute allowedRoles={["kitchen", "admin"]}>
+              <KitchenMonitor />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="monitor"
+          element={
+            <RoleRoute allowedRoles={["hall", "admin"]}>
+              <HallMonitor />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="assembly"
+          element={
+            <RoleRoute allowedRoles={["assembly", "admin"]}>
+              <AssemblyMonitor />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="history"
+          element={
+            <RoleRoute allowedRoles={["history", "admin"]}>
+              <HistoryPage />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="admin"
+          element={
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminLayout />
+            </RoleRoute>
+          }
+        >
+          <Route index element={<AdminOrdersPage />} />
+          <Route path="categories" element={<CategoriesPage />} />
+          <Route path="menu-items" element={<MenuItemsPage />} />
+          <Route path="access-requests" element={<AdminAccessRequestsPage />} />
+          <Route path="create-staff" element={<AdminCreateStaffPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+        </Route>
+      </Route>
+    </Routes>
+  );
 }
 
-const styles = {
-	nav: {
-		display: 'flex',
-		gap: '15px',
-		padding: '15px 20px',
-		background: '#222',
-		flexWrap: 'wrap' as const,
-	},
-	link: {
-		color: '#fff',
-		textDecoration: 'none',
-		fontWeight: 'bold',
-	},
-	main: {
-		padding: '20px',
-	},
-}
-
-export default App
+export default App;

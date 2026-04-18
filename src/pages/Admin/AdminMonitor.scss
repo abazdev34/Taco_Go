@@ -1,0 +1,87 @@
+.admin-monitor {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* HEADER */
+.monitor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  h1 {
+    margin: 0;
+  }
+
+  button {
+    background: #111;
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+}
+
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 10px;
+
+  button {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+
+    &.active {
+      background: #111;
+      color: #fff;
+    }
+  }
+}
+
+/* STATS */
+.stats {
+  display: flex;
+  gap: 12px;
+
+  .card {
+    background: #fff;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #eee;
+  }
+}
+
+/* GRID */
+.orders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* CARD */
+.order-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #eee;
+
+  .top {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .items {
+    color: #555;
+    margin-bottom: 10px;
+  }
+
+  .footer {
+    font-weight: 700;
+  }
+}

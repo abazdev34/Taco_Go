@@ -1,7 +1,5 @@
-import AdminMonitor from "../AdminMonitor/AdminMonitor";
-
 function AdminOrdersPage() {
-  return <AdminMonitor />;
+  return <div>ADMIN WORKS ✅</div>;
 }
 
 export default AdminOrdersPage;

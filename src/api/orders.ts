@@ -1,10 +1,10 @@
-import { supabase } from '../lib/supabase'
+import { supabase } from "../lib/supabase";
 import {
   ICreateOrderPayload,
   IOrderRow,
   IUpdateOrderPayload,
   TOrderStatus,
-} from '../types/order'
+} from "../types/order";
 
 const ORDER_SELECT_FIELDS = `
   id,
@@ -29,64 +29,64 @@ const ORDER_SELECT_FIELDS = `
   cashier_status,
   cashier_name,
   paid_at
-`
+`;
 
 /* ================= FETCH ================= */
 
 export async function fetchOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
-    .from('orders')
+    .from("orders")
     .select(ORDER_SELECT_FIELDS)
-    .order('created_at', { ascending: false })
+    .order("created_at", { ascending: false });
 
-  if (error) throw new Error(error.message)
-  return (data || []) as IOrderRow[]
+  if (error) throw new Error(error.message);
+  return (data || []) as IOrderRow[];
 }
 
 export async function fetchActiveOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
-    .from('orders')
+    .from("orders")
     .select(ORDER_SELECT_FIELDS)
-    .in('status', ['new', 'preparing', 'ready', 'pending'])
-    .order('created_at', { ascending: false })
+    .in("status", ["new", "preparing", "ready", "pending"])
+    .order("created_at", { ascending: false });
 
-  if (error) throw new Error(error.message)
-  return (data || []) as IOrderRow[]
+  if (error) throw new Error(error.message);
+  return (data || []) as IOrderRow[];
 }
 
 export async function fetchHistoryOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
-    .from('orders')
+    .from("orders")
     .select(ORDER_SELECT_FIELDS)
-    .eq('status', 'completed')
-    .order('created_at', { ascending: false })
+    .eq("status", "completed")
+    .order("created_at", { ascending: false });
 
-  if (error) throw new Error(error.message)
-  return (data || []) as IOrderRow[]
+  if (error) throw new Error(error.message);
+  return (data || []) as IOrderRow[];
 }
 
 /* ================= HELPERS ================= */
 
 async function getNextDailyOrderNumber(): Promise<number> {
-  const now = new Date()
+  const now = new Date();
 
-  const startOfDay = new Date(now)
-  startOfDay.setHours(0, 0, 0, 0)
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
 
-  const endOfDay = new Date(now)
-  endOfDay.setHours(23, 59, 59, 999)
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
 
   const { data, error } = await supabase
-    .from('orders')
-    .select('daily_order_number')
-    .gte('created_at', startOfDay.toISOString())
-    .lte('created_at', endOfDay.toISOString())
-    .order('daily_order_number', { ascending: false })
-    .limit(1)
+    .from("orders")
+    .select("daily_order_number")
+    .gte("created_at", startOfDay.toISOString())
+    .lte("created_at", endOfDay.toISOString())
+    .order("daily_order_number", { ascending: false })
+    .limit(1);
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 
-  return Number(data?.[0]?.daily_order_number || 0) + 1
+  return Number(data?.[0]?.daily_order_number || 0) + 1;
 }
 
 /* ================= CREATE ================= */
@@ -94,102 +94,115 @@ async function getNextDailyOrderNumber(): Promise<number> {
 export async function createOrder(
   payload: ICreateOrderPayload
 ): Promise<IOrderRow> {
-  const items = Array.isArray(payload.items) ? payload.items : []
+  const items = Array.isArray(payload.items) ? payload.items : [];
 
   const hasKitchen = items.some(
-    (item) => item?.categories?.type !== 'assembly'
-  )
+    (item) => item?.categories?.type !== "assembly"
+  );
 
   const hasAssembly = items.some(
-    (item) => item?.categories?.type === 'assembly'
-  )
+    (item) => item?.categories?.type === "assembly"
+  );
 
-  let status: TOrderStatus = 'new'
+  let status: TOrderStatus = "new";
 
-  if (payload.source === 'client') {
-    status = 'pending'
+  if (payload.source === "client") {
+    status = "pending";
   } else {
-    status = hasKitchen ? 'new' : hasAssembly ? 'preparing' : 'new'
+    status = hasKitchen ? "new" : hasAssembly ? "preparing" : "new";
   }
 
-  const nextDailyOrderNumber = await getNextDailyOrderNumber()
+  const nextDailyOrderNumber = await getNextDailyOrderNumber();
 
   const insertPayload: ICreateOrderPayload & {
-    daily_order_number: number
+    daily_order_number: number;
   } = {
     ...payload,
-
     items,
     total: Number(payload.total ?? 0),
 
     comment: payload.comment?.trim() || null,
-    source: payload.source ?? 'client',
+    source: payload.source ?? "client",
     status,
 
     kitchen_status:
-      payload.source === 'client'
-        ? 'new'
+      payload.source === "client"
+        ? "new"
         : hasKitchen
-          ? 'new'
-          : 'skipped',
+        ? "new"
+        : "skipped",
 
     assembly_status:
-      payload.source === 'client'
-        ? 'waiting'
+      payload.source === "client"
+        ? "waiting"
         : hasAssembly
-          ? hasKitchen
-            ? 'waiting'
-            : 'new'
-          : 'skipped',
+        ? hasKitchen
+          ? "waiting"
+          : "new"
+        : "skipped",
 
     customer_name: payload.customer_name?.trim() || null,
     table_number: payload.table_number ?? null,
-    order_place: payload.order_place ?? payload.order_type ?? 'hall',
-
+    order_place: payload.order_place ?? payload.order_type ?? "hall",
     assembly_progress: payload.assembly_progress ?? [],
-
     payment_method: payload.payment_method ?? null,
     paid_amount: payload.paid_amount ?? null,
     change_amount: payload.change_amount ?? null,
-
     cashier_status: payload.cashier_status ?? null,
     cashier_name: payload.cashier_name?.trim() || null,
     paid_at: payload.paid_at ?? null,
-
     daily_order_number: nextDailyOrderNumber,
-  }
+  };
 
   const { data, error } = await supabase
-    .from('orders')
+    .from("orders")
     .insert([insertPayload])
     .select(ORDER_SELECT_FIELDS)
-    .single()
+    .single();
 
-  if (error) throw new Error(error.message)
-  return data as IOrderRow
+  if (error) throw new Error(error.message);
+  return data as IOrderRow;
 }
 
 /* ================= UPDATE ================= */
+
+export async function updateOrderStatus(
+  id: string,
+  status: TOrderStatus
+): Promise<IOrderRow> {
+  const { data, error } = await supabase
+    .from("orders")
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select(ORDER_SELECT_FIELDS)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data as IOrderRow;
+}
 
 export async function updateOrderWorkflow(
   id: string,
   payload: Partial<
     Pick<
       IUpdateOrderPayload,
-      'status' | 'kitchen_status' | 'assembly_status' | 'assembly_progress'
+      "status" | "kitchen_status" | "assembly_status" | "assembly_progress"
     >
   >
 ): Promise<void> {
   const cleanedPayload = Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
-  )
+  );
 
   const { error } = await supabase
-    .from('orders')
+    .from("orders")
     .update(cleanedPayload)
-    .eq('id', id)
+    .eq("id", id);
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 }
 
 export async function updateCashierOrder(
@@ -197,64 +210,62 @@ export async function updateCashierOrder(
   payload: Partial<
     Pick<
       IUpdateOrderPayload,
-      | 'cashier_status'
-      | 'payment_method'
-      | 'paid_amount'
-      | 'change_amount'
-      | 'cashier_name'
-      | 'paid_at'
-      | 'status'
-      | 'kitchen_status'
-      | 'assembly_status'
-      | 'assembly_progress'
+      | "cashier_status"
+      | "payment_method"
+      | "paid_amount"
+      | "change_amount"
+      | "cashier_name"
+      | "paid_at"
+      | "status"
+      | "kitchen_status"
+      | "assembly_status"
+      | "assembly_progress"
     >
   >
 ): Promise<void> {
   const cleanedPayload = Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
-  )
+  );
 
   const { error } = await supabase
-    .from('orders')
+    .from("orders")
     .update(cleanedPayload)
-    .eq('id', id)
+    .eq("id", id);
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 }
 
 export async function updateOrderComment(
   id: string,
   comment: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('orders')
+): Promise<IOrderRow> {
+  const { data, error } = await supabase
+    .from("orders")
     .update({
       comment: comment?.trim() || null,
+      updated_at: new Date().toISOString(),
     })
-    .eq('id', id)
+    .eq("id", id)
+    .select(ORDER_SELECT_FIELDS)
+    .single();
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
+  return data as IOrderRow;
 }
 
 /* ================= DELETE ================= */
 
 export async function deleteOrder(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('orders')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from("orders").delete().eq("id", id);
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteOrdersByIds(ids: string[]): Promise<void> {
-  const safeIds = ids?.filter(Boolean) ?? []
-  if (!safeIds.length) return
+  const safeIds = ids?.filter(Boolean) ?? [];
+  if (!safeIds.length) return;
 
-  const { error } = await supabase
-    .from('orders')
-    .delete()
-    .in('id', safeIds)
+  const { error } = await supabase.from("orders").delete().in("id", safeIds);
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 }
