@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase";
 type Profile = {
   id: string;
   email: string;
-  role: string;
+  role: string | null;
   status: string;
 };
 
@@ -24,7 +24,7 @@ function AdminAccessRequestsPage() {
   const loadUsers = async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, email, role, status")
       .eq("status", "pending");
 
     if (!error) {
@@ -58,7 +58,9 @@ function AdminAccessRequestsPage() {
         { event: "UPDATE", schema: "public", table: "profiles" },
         (payload) => {
           const updated = payload.new as Profile;
-          setUsers((prev) => prev.filter((u) => u.id !== updated.id));
+          if (updated.status !== "pending") {
+            setUsers((prev) => prev.filter((u) => u.id !== updated.id));
+          }
         }
       )
       .subscribe();
@@ -70,8 +72,9 @@ function AdminAccessRequestsPage() {
 
   const approveUser = async (id: string) => {
     const role = selectedRoles[id];
+
     if (!role) {
-      alert("Роль танда!");
+      alert("Выберите роль");
       return;
     }
 
@@ -80,6 +83,7 @@ function AdminAccessRequestsPage() {
       .update({
         status: "approved",
         role,
+        approved_at: new Date().toISOString(),
       })
       .eq("id", id);
   };
@@ -87,7 +91,9 @@ function AdminAccessRequestsPage() {
   const rejectUser = async (id: string) => {
     await supabase
       .from("profiles")
-      .update({ status: "rejected" })
+      .update({
+        status: "rejected",
+      })
       .eq("id", id);
   };
 
