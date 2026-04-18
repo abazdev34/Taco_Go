@@ -11,19 +11,16 @@ type Profile = {
 const roles = [
   { value: "cashier", label: "💵 Касса" },
   { value: "kitchen", label: "👨‍🍳 Кухня" },
-  { value: "hall", label: "🖥 Зал" },
+  { value: "hall", label: "🖥 Зал / Монитор" },
   { value: "assembly", label: "📦 Сборка" },
   { value: "history", label: "📊 История" },
 ];
 
 function AdminAccessRequestsPage() {
   const [users, setUsers] = useState<Profile[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<Record<string, string>>(
-    {}
-  );
+  const [selectedRoles, setSelectedRoles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
-  // 🔥 SAFE LOAD
   const loadUsers = async () => {
     const { data, error } = await supabase
       .from("profiles")
@@ -42,8 +39,6 @@ function AdminAccessRequestsPage() {
 
     const channel = supabase
       .channel("profiles-live")
-
-      // INSERT
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "profiles" },
@@ -58,20 +53,14 @@ function AdminAccessRequestsPage() {
           }
         }
       )
-
-      // UPDATE
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles" },
         (payload) => {
           const updated = payload.new as Profile;
-
-          setUsers((prev) =>
-            prev.filter((u) => u.id !== updated.id)
-          );
+          setUsers((prev) => prev.filter((u) => u.id !== updated.id));
         }
       )
-
       .subscribe();
 
     return () => {
@@ -81,7 +70,6 @@ function AdminAccessRequestsPage() {
 
   const approveUser = async (id: string) => {
     const role = selectedRoles[id];
-
     if (!role) {
       alert("Роль танда!");
       return;
@@ -107,40 +95,79 @@ function AdminAccessRequestsPage() {
 
   return (
     <div style={{ padding: 30 }}>
-      <h1>📩 Заявки</h1>
+      <h1>📩 Заявки на доступ</h1>
 
       {users.length === 0 ? (
-        <p>Жок</p>
+        <p>Нет заявок</p>
       ) : (
-        users.map((user) => (
-          <div key={user.id} style={{ marginBottom: 20 }}>
-            <b>{user.email}</b>
-
-            <select
-              onChange={(e) =>
-                setSelectedRoles((prev) => ({
-                  ...prev,
-                  [user.id]: e.target.value,
-                }))
-              }
+        <div style={{ display: "grid", gap: 20 }}>
+          {users.map((user) => (
+            <div
+              key={user.id}
+              style={{
+                background: "#fff",
+                padding: 20,
+                borderRadius: 12,
+                boxShadow: "0 6px 15px rgba(0,0,0,0.1)",
+              }}
             >
-              <option value="">Роль танда</option>
-              {roles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+              <div style={{ fontWeight: 600, marginBottom: 10 }}>{user.email}</div>
 
-            <button onClick={() => approveUser(user.id)}>
-              ✔ OK
-            </button>
+              <select
+                value={selectedRoles[user.id] || ""}
+                onChange={(e) =>
+                  setSelectedRoles((prev) => ({
+                    ...prev,
+                    [user.id]: e.target.value,
+                  }))
+                }
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  borderRadius: 8,
+                  marginBottom: 10,
+                }}
+              >
+                <option value="">Выберите роль</option>
+                {roles.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
 
-            <button onClick={() => rejectUser(user.id)}>
-              ❌ X
-            </button>
-          </div>
-        ))
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => approveUser(user.id)}
+                  style={{
+                    flex: 1,
+                    background: "green",
+                    color: "#fff",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "none",
+                  }}
+                >
+                  ✅ Одобрить
+                </button>
+
+                <button
+                  onClick={() => rejectUser(user.id)}
+                  style={{
+                    flex: 1,
+                    background: "red",
+                    color: "#fff",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "none",
+                  }}
+                >
+                  ❌ Отклонить
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

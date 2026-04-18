@@ -9,12 +9,13 @@ export type TProfileRole =
   | "history"
   | "client";
 
+export type AccessStatus = "pending" | "approved" | "rejected";
+
 export interface IProfileRow {
   id: string;
   email: string | null;
-  full_name?: string | null;
   role: TProfileRole | null;
-  status: string | null;
+  status: AccessStatus | null;
   approved_at?: string | null;
   approved_by?: string | null;
   created_at?: string | null;
@@ -23,7 +24,7 @@ export interface IProfileRow {
 export async function fetchProfileById(id: string): Promise<IProfileRow | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, status, approved_at, approved_by, created_at")
+    .select("id, email, role, status, approved_at, approved_by, created_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -37,7 +38,7 @@ export async function fetchProfileById(id: string): Promise<IProfileRow | null> 
 export async function fetchPendingProfiles(): Promise<IProfileRow[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, status, approved_at, approved_by, created_at")
+    .select("id, email, role, status, approved_at, approved_by, created_at")
     .eq("status", "pending")
     .order("created_at", { ascending: false });
 
@@ -62,7 +63,7 @@ export async function approveProfile(
       approved_by: adminUserId,
     })
     .eq("id", id)
-    .select("id, email, full_name, role, status, approved_at, approved_by, created_at")
+    .select("id, email, role, status, approved_at, approved_by, created_at")
     .single();
 
   if (error) {
@@ -79,7 +80,7 @@ export async function rejectProfile(id: string): Promise<IProfileRow> {
       status: "rejected",
     })
     .eq("id", id)
-    .select("id, email, full_name, role, status, approved_at, approved_by, created_at")
+    .select("id, email, role, status, approved_at, approved_by, created_at")
     .single();
 
   if (error) {

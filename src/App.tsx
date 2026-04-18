@@ -39,7 +39,7 @@ function App() {
         <Route
           path="cashier"
           element={
-            <RoleRoute allowedRoles={["cashier", "admin"]}>
+            <RoleRoute allowedRoles={["cashier"]}>
               <CashierMonitor />
             </RoleRoute>
           }
@@ -48,7 +48,7 @@ function App() {
         <Route
           path="kitchen"
           element={
-            <RoleRoute allowedRoles={["kitchen", "admin"]}>
+            <RoleRoute allowedRoles={["kitchen"]}>
               <KitchenMonitor />
             </RoleRoute>
           }
@@ -57,7 +57,7 @@ function App() {
         <Route
           path="monitor"
           element={
-            <RoleRoute allowedRoles={["hall", "admin"]}>
+            <RoleRoute allowedRoles={["hall"]}>
               <HallMonitor />
             </RoleRoute>
           }
@@ -66,7 +66,7 @@ function App() {
         <Route
           path="assembly"
           element={
-            <RoleRoute allowedRoles={["assembly", "admin"]}>
+            <RoleRoute allowedRoles={["assembly"]}>
               <AssemblyMonitor />
             </RoleRoute>
           }
@@ -75,7 +75,7 @@ function App() {
         <Route
           path="history"
           element={
-            <RoleRoute allowedRoles={["history", "admin"]}>
+            <RoleRoute allowedRoles={["history"]}>
               <HistoryPage />
             </RoleRoute>
           }

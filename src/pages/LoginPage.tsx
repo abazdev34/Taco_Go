@@ -41,50 +41,60 @@ function LoginPage() {
         .eq("id", user.id)
         .maybeSingle();
 
+      console.log("LOGIN USER:", user);
+      console.log("LOGIN PROFILE:", profile);
+      console.log("LOGIN PROFILE ERROR:", profileError);
+
       if (profileError) {
-        console.error(profileError);
+        alert(profileError.message || "Ошибка загрузки профиля");
         navigate("/client", { replace: true });
         return;
       }
 
-      if (profile?.status && profile.status !== "approved") {
+      if (!profile) {
+        alert("Профиль не найден");
+        navigate("/client", { replace: true });
+        return;
+      }
+
+      if (profile.status !== "approved") {
         navigate("/pending-approval", { replace: true });
         return;
       }
 
-      if (profile?.role === "admin") {
+      if (profile.role === "admin") {
         navigate("/admin", { replace: true });
         return;
       }
 
-      if (profile?.role === "cashier") {
+      if (profile.role === "cashier") {
         navigate("/cashier", { replace: true });
         return;
       }
 
-      if (profile?.role === "kitchen") {
+      if (profile.role === "kitchen") {
         navigate("/kitchen", { replace: true });
         return;
       }
 
-      if (profile?.role === "hall") {
+      if (profile.role === "hall") {
         navigate("/monitor", { replace: true });
         return;
       }
 
-      if (profile?.role === "assembly") {
+      if (profile.role === "assembly") {
         navigate("/assembly", { replace: true });
         return;
       }
 
-      if (profile?.role === "history") {
+      if (profile.role === "history") {
         navigate("/history", { replace: true });
         return;
       }
 
       navigate("/client", { replace: true });
     } catch (err) {
-      console.error(err);
+      console.error("LOGIN ERROR:", err);
       alert("Ошибка входа");
     } finally {
       setLoading(false);
