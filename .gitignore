@@ -1,4 +1,5 @@
 # Logs
+
 logs
 *.log
 npm-debug.log*
@@ -7,21 +8,45 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
+
 node_modules
+
+# Build
+
 dist
 dist-ssr
-*.local
 
-# Editor directories and files
+# Local env files
+
+.env
+.env.local
+.env.*.local
+
+# Supabase (МААНИЛҮҮ)
+
+supabase/
+
+# Vercel
+
+.vercel
+
+# Editor
+
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# OS
+
 .DS_Store
+Thumbs.db
+
+# Misc
+
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env
-.env.local
-.env.*.local
+*.local
