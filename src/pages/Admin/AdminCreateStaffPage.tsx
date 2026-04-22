@@ -1,73 +1,82 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import "./AdminCreateStaffPage.scss";
+
+const roleOptions = [
+  { value: "cashier", label: "Касса" },
+  { value: "kitchen", label: "Кухня" },
+  { value: "hall", label: "Зал / Монитор" },
+  { value: "assembly", label: "Сборка" },
+  { value: "history", label: "История" },
+  { value: "admin", label: "Администратор" },
+];
 
 function AdminCreateStaffPage() {
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("cashier");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "info">(
     "info"
   );
 
+  const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
+  const canSubmit =
+    normalizedEmail.length > 0 && password.trim().length >= 6 && !loading;
+
   const handleCreateStaff = async () => {
+    if (!normalizedEmail) {
+      setMessageType("error");
+      setMessage("Введите email.");
+      return;
+    }
+
+    if (password.trim().length < 6) {
+      setMessageType("error");
+      setMessage("Пароль должен быть не менее 6 символов.");
+      return;
+    }
+
     try {
       setLoading(true);
       setMessage("");
       setMessageType("info");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke(
+        "create-staff-user",
+        {
+          body: {
+            email: normalizedEmail,
+            password: password.trim(),
+            role,
+          },
+        }
+      );
 
-      if (!session?.access_token) {
+      if (error) {
         setMessageType("error");
-        setMessage("Сессия не найдена. Пожалуйста, войдите заново.");
+        setMessage(error.message || "Ошибка вызова функции.");
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("create-staff-user", {
-        body: {
-          email,
-          password,
-          full_name: fullName,
-          role,
-        },
-      });
+      if (data?.error) {
+        const errorText = String(data.error);
 
-      console.log("FUNCTION DATA:", data);
-      console.log("FUNCTION ERROR:", error);
-
-      if (error) {
-        let errorText = error.message;
-
-        try {
-          if ("context" in error && error.context) {
-            errorText = await error.context.text();
-          }
-        } catch {}
-
-        if (errorText.includes("already been registered")) {
-          setMessageType("error");
-          setMessage("Пользователь с таким email уже зарегистрирован.");
-          return;
-        }
-
-        if (errorText.includes("Only admin")) {
+        if (errorText.includes("admin")) {
           setMessageType("error");
           setMessage("Только администратор может создавать сотрудников.");
           return;
         }
 
-        if (errorText.includes("Unauthorized")) {
+        if (errorText.includes("already") || errorText.includes("registered")) {
           setMessageType("error");
-          setMessage("Ошибка авторизации. Пожалуйста, войдите снова.");
+          setMessage("Пользователь с таким email уже зарегистрирован.");
           return;
         }
 
-        if (errorText.includes("invalid input value for enum app_role")) {
+        if (errorText.includes("Invalid role")) {
           setMessageType("error");
           setMessage("Выбрана недопустимая роль.");
           return;
@@ -79,14 +88,14 @@ function AdminCreateStaffPage() {
       }
 
       setMessageType("success");
-      setMessage("Сотрудник успешно создан.");
+      setMessage(data?.message || "Сотрудник успешно создан.");
 
-      setFullName("");
       setEmail("");
       setPassword("");
       setRole("cashier");
+      setShowPassword(false);
     } catch (err: any) {
-      console.error("HANDLE CREATE STAFF ERROR:", err);
+      console.error("CREATE STAFF ERROR:", err);
       setMessageType("error");
       setMessage(err?.message || "Произошла непредвиденная ошибка.");
     } finally {
@@ -109,44 +118,93 @@ function AdminCreateStaffPage() {
         </div>
       )}
 
-      <div className="admin-form">
-        <input
-          type="text"
-          placeholder="ФИО"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-        />
+      <div className="admin-create-staff-grid">
+        <div className="admin-form-card">
+          <div className="admin-form-card__head">
+            <h3>Данные сотрудника</h3>
+            <span>Заполните поля ниже</span>
+          </div>
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+          <div className="admin-form">
+            <label className="admin-field">
+              <span>Email</span>
+              <input
+                type="email"
+                placeholder="employee@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
 
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+            <label className="admin-field">
+              <span>Пароль</span>
 
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="cashier">Касса</option>
-          <option value="kitchen">Кухня</option>
-          <option value="hall">Зал / Монитор</option>
-          <option value="assembly">Сборка</option>
-          <option value="history">История</option>
-          <option value="admin">Админ</option>
-        </select>
+              <div className="admin-password-wrap">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Минимум 6 символов"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
 
-        <button
-          className="admin-btn admin-btn--warning"
-          onClick={handleCreateStaff}
-          disabled={loading || !fullName || !email || !password}
-        >
-          {loading ? "Создание..." : "Создать сотрудника"}
-        </button>
+                <button
+                  type="button"
+                  className="admin-password-toggle"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? "Скрыть" : "Показать"}
+                </button>
+              </div>
+            </label>
+
+            <label className="admin-field">
+              <span>Роль</span>
+              <select value={role} onChange={(e) => setRole(e.target.value)}>
+                {roleOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              className="admin-btn admin-btn--warning admin-btn--wide"
+              onClick={handleCreateStaff}
+              disabled={!canSubmit}
+            >
+              {loading ? "Создание..." : "Создать сотрудника"}
+            </button>
+          </div>
+        </div>
+
+        <div className="admin-form-card admin-form-card--hint">
+          <div className="admin-form-card__head">
+            <h3>Подсказка</h3>
+            <span>Что важно учитывать</span>
+          </div>
+
+          <div className="admin-hint-list">
+            <div className="admin-hint-item">
+              <strong>Email</strong>
+              <p>Используйте реальный рабочий email сотрудника.</p>
+            </div>
+
+            <div className="admin-hint-item">
+              <strong>Пароль</strong>
+              <p>Лучше сразу задать сложный пароль и потом передать сотруднику.</p>
+            </div>
+
+            <div className="admin-hint-item">
+              <strong>Роль</strong>
+              <p>
+                Выберите доступ только к нужному разделу: касса, кухня, зал,
+                сборка или история.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

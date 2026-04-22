@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import "./AdminAccessRequestsPage.scss";
 
 type Profile = {
   id: string;
@@ -14,28 +15,47 @@ const roles = [
   { value: "hall", label: "🖥 Зал / Монитор" },
   { value: "assembly", label: "📦 Сборка" },
   { value: "history", label: "📊 История" },
+  { value: "admin", label: "🛡 Админ" },
 ];
 
 function AdminAccessRequestsPage() {
   const [users, setUsers] = useState<Profile[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error" | "info">(
+    "info"
+  );
 
   const loadUsers = async () => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, email, role, status")
-      .eq("status", "pending");
+    try {
+      setLoading(true);
+      setMessage("");
 
-    if (!error) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email, role, status")
+        .eq("status", "pending")
+        .order("email", { ascending: true });
+
+      if (error) {
+        setMessageType("error");
+        setMessage(`Ошибка загрузки: ${error.message}`);
+        return;
+      }
+
       setUsers(data || []);
+    } catch (error: any) {
+      setMessageType("error");
+      setMessage(error?.message || "Не удалось загрузить заявки");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
-    loadUsers();
+    void loadUsers();
 
     const channel = supabase
       .channel("profiles-live")
@@ -58,15 +78,20 @@ function AdminAccessRequestsPage() {
         { event: "UPDATE", schema: "public", table: "profiles" },
         (payload) => {
           const updated = payload.new as Profile;
+
           if (updated.status !== "pending") {
             setUsers((prev) => prev.filter((u) => u.id !== updated.id));
+          } else {
+            setUsers((prev) =>
+              prev.map((user) => (user.id === updated.id ? updated : user))
+            );
           }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, []);
 
@@ -74,105 +99,152 @@ function AdminAccessRequestsPage() {
     const role = selectedRoles[id];
 
     if (!role) {
-      alert("Выберите роль");
+      setMessageType("error");
+      setMessage("Сначала выберите роль.");
       return;
     }
 
-    await supabase
-      .from("profiles")
-      .update({
-        status: "approved",
-        role,
-        approved_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    try {
+      setBusyId(id);
+      setMessage("");
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          status: "approved",
+          role,
+          approved_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) {
+        setMessageType("error");
+        setMessage(`Ошибка одобрения: ${error.message}`);
+        return;
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setMessageType("success");
+      setMessage("Заявка успешно одобрена.");
+    } catch (error: any) {
+      setMessageType("error");
+      setMessage(error?.message || "Не удалось одобрить заявку");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const rejectUser = async (id: string) => {
-    await supabase
-      .from("profiles")
-      .update({
-        status: "rejected",
-      })
-      .eq("id", id);
+    try {
+      setBusyId(id);
+      setMessage("");
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          status: "rejected",
+        })
+        .eq("id", id);
+
+      if (error) {
+        setMessageType("error");
+        setMessage(`Ошибка отклонения: ${error.message}`);
+        return;
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setMessageType("success");
+      setMessage("Заявка отклонена.");
+    } catch (error: any) {
+      setMessageType("error");
+      setMessage(error?.message || "Не удалось отклонить заявку");
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  if (loading) return <p style={{ padding: 20 }}>Жүктөлүүдө...</p>;
-
   return (
-    <div style={{ padding: 30 }}>
-      <h1>📩 Заявки на доступ</h1>
+    <div className="admin-page-card">
+      <div className="admin-page-header">
+        <div>
+          <h1>Заявки на доступ</h1>
+          <p>Одобрение новых сотрудников и назначение ролей</p>
+        </div>
+      </div>
 
-      {users.length === 0 ? (
-        <p>Нет заявок</p>
+      {message && (
+        <div className={`admin-message admin-message--${messageType}`}>
+          {message}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="admin-message admin-message--info">Жүктөлүүдө...</div>
+      ) : users.length === 0 ? (
+        <div className="admin-message admin-message--info">Нет заявок</div>
       ) : (
-        <div style={{ display: "grid", gap: 20 }}>
-          {users.map((user) => (
-            <div
-              key={user.id}
-              style={{
-                background: "#fff",
-                padding: 20,
-                borderRadius: 12,
-                boxShadow: "0 6px 15px rgba(0,0,0,0.1)",
-              }}
-            >
-              <div style={{ fontWeight: 600, marginBottom: 10 }}>{user.email}</div>
+        <div className="admin-requests-grid">
+          {users.map((user) => {
+            const isBusy = busyId === user.id;
 
-              <select
-                value={selectedRoles[user.id] || ""}
-                onChange={(e) =>
-                  setSelectedRoles((prev) => ({
-                    ...prev,
-                    [user.id]: e.target.value,
-                  }))
-                }
-                style={{
-                  width: "100%",
-                  padding: 10,
-                  borderRadius: 8,
-                  marginBottom: 10,
-                }}
-              >
-                <option value="">Выберите роль</option>
-                {roles.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+            return (
+              <div key={user.id} className="admin-request-card">
+                <div className="admin-request-card__top">
+                  <div>
+                    <span className="admin-request-card__label">Email</span>
+                    <strong>{user.email}</strong>
+                  </div>
 
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => approveUser(user.id)}
-                  style={{
-                    flex: 1,
-                    background: "green",
-                    color: "#fff",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "none",
-                  }}
-                >
-                  ✅ Одобрить
-                </button>
+                  <span className="admin-badge admin-badge--pending">
+                    Ожидает
+                  </span>
+                </div>
 
-                <button
-                  onClick={() => rejectUser(user.id)}
-                  style={{
-                    flex: 1,
-                    background: "red",
-                    color: "#fff",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "none",
-                  }}
-                >
-                  ❌ Отклонить
-                </button>
+                <div className="admin-request-card__body">
+                  <label className="admin-field">
+                    <span>Роль сотрудника</span>
+                    <select
+                      value={selectedRoles[user.id] || ""}
+                      disabled={isBusy}
+                      onChange={(e) =>
+                        setSelectedRoles((prev) => ({
+                          ...prev,
+                          [user.id]: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Выберите роль</option>
+                      {roles.map((role) => (
+                        <option key={role.value} value={role.value}>
+                          {role.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="admin-request-card__actions">
+                  <button
+                    type="button"
+                    className="admin-action-btn admin-action-btn--approve"
+                    disabled={isBusy}
+                    onClick={() => approveUser(user.id)}
+                  >
+                    {isBusy ? "..." : "Одобрить"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="admin-action-btn admin-action-btn--reject"
+                    disabled={isBusy}
+                    onClick={() => rejectUser(user.id)}
+                  >
+                    {isBusy ? "..." : "Отклонить"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

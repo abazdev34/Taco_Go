@@ -1,0 +1,150 @@
+.admin-create-staff-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 18px;
+}
+
+.admin-form-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 214, 111, 0.08);
+  border-radius: 24px;
+  padding: 18px;
+
+  &--hint {
+    background:
+      linear-gradient(180deg, rgba(245, 193, 60, 0.08), rgba(255, 255, 255, 0.03)),
+      rgba(255, 255, 255, 0.03);
+  }
+
+  &__head {
+    margin-bottom: 16px;
+
+    h3 {
+      margin: 0 0 6px;
+      color: #fff3cf;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    span {
+      color: rgba(255, 243, 205, 0.68);
+      font-size: 13px;
+    }
+  }
+}
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  span {
+    color: #f5d38a;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  input,
+  select {
+    min-height: 50px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 226, 160, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    padding: 0 14px;
+    outline: none;
+    font-size: 14px;
+
+    &::placeholder {
+      color: rgba(255, 243, 205, 0.42);
+    }
+
+    &:focus {
+      border-color: rgba(245, 193, 60, 0.36);
+      box-shadow: 0 0 0 4px rgba(245, 193, 60, 0.08);
+    }
+  }
+
+  select option {
+    background: #1b1b1b;
+    color: #fff;
+  }
+}
+
+.admin-password-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.admin-password-toggle {
+  min-height: 50px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff2c7;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+.admin-btn--wide {
+  width: 100%;
+}
+
+.admin-hint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-hint-item {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 214, 111, 0.06);
+
+  strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #fff3cf;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(255, 243, 205, 0.72);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 920px) {
+  .admin-create-staff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-form-card {
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .admin-password-wrap {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,1 +1,8 @@
-src/vite-env.d.ts
+src / vite - env.d.ts
+/// <reference types="vite/client" />
+
+declare module '*.jpg'
+declare module '*.png'
+declare module '*.jpeg'
+declare module '*.svg'
+declare module '*.webp'

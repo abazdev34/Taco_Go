@@ -97,50 +97,35 @@ export async function createOrder(
   const items = Array.isArray(payload.items) ? payload.items : [];
 
   const hasKitchen = items.some(
-    (item) => item?.categories?.type !== "assembly"
+    (item: any) => item?.categories?.type !== "assembly"
   );
 
   const hasAssembly = items.some(
-    (item) => item?.categories?.type === "assembly"
+    (item: any) => item?.categories?.type === "assembly"
   );
 
-  let status: TOrderStatus = "new";
+  const resolvedStatus: TOrderStatus =
+    (payload.status as TOrderStatus) ||
+    (hasKitchen ? "new" : hasAssembly ? "preparing" : "new");
 
-  if (payload.source === "client") {
-    status = "pending";
-  } else {
-    status = hasKitchen ? "new" : hasAssembly ? "preparing" : "new";
-  }
+  const resolvedKitchenStatus =
+    payload.kitchen_status ?? (hasKitchen ? "new" : "skipped");
+
+  const resolvedAssemblyStatus =
+    payload.assembly_status ??
+    (hasAssembly ? (hasKitchen ? "waiting" : "new") : "skipped");
 
   const nextDailyOrderNumber = await getNextDailyOrderNumber();
 
-  const insertPayload: ICreateOrderPayload & {
-    daily_order_number: number;
-  } = {
+  const insertPayload: Record<string, any> = {
     ...payload,
     items,
     total: Number(payload.total ?? 0),
-
     comment: payload.comment?.trim() || null,
     source: payload.source ?? "client",
-    status,
-
-    kitchen_status:
-      payload.source === "client"
-        ? "new"
-        : hasKitchen
-        ? "new"
-        : "skipped",
-
-    assembly_status:
-      payload.source === "client"
-        ? "waiting"
-        : hasAssembly
-        ? hasKitchen
-          ? "waiting"
-          : "new"
-        : "skipped",
-
+    status: resolvedStatus,
+    kitchen_status: resolvedKitchenStatus,
+    assembly_status: resolvedAssemblyStatus,
     customer_name: payload.customer_name?.trim() || null,
     table_number: payload.table_number ?? null,
     order_place: payload.order_place ?? payload.order_type ?? "hall",

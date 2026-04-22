@@ -7,6 +7,8 @@ export async function fetchMenuItems() {
     .select("*")
     .order("sort_order", { ascending: true });
 
+  console.log("MENU ITEMS:", { items, itemsError });
+
   if (itemsError) {
     throw new Error(itemsError.message);
   }
@@ -14,6 +16,8 @@ export async function fetchMenuItems() {
   const { data: categories, error: categoriesError } = await supabase
     .from("categories")
     .select("id, name, image, sort_order, created_at, type");
+
+  console.log("CATEGORIES:", { categories, categoriesError });
 
   if (categoriesError) {
     throw new Error(categoriesError.message);

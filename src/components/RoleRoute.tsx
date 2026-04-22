@@ -1,41 +1,29 @@
-import { Navigate } from "react-router-dom";
-import type { ReactNode } from "react";
-import { useAuth } from "../context/AuthContext";
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 type Props = {
-  allowedRoles: string[];
-  children: ReactNode;
-};
-
-function RoleRoute({ allowedRoles, children }: Props) {
-  const { user, profile, loading } = useAuth();
-
-  if (loading) {
-    return <div style={{ padding: 20 }}>Загрузка...</div>;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (!profile) {
-    return <Navigate to="/client" replace />;
-  }
-
-  if (profile.status !== "approved") {
-    return <Navigate to="/pending-approval" replace />;
-  }
-
-  // admin баарына кире алат
-  if (profile.role === "admin") {
-    return <>{children}</>;
-  }
-
-  if (!allowedRoles.includes(profile.role)) {
-    return <Navigate to="/client" replace />;
-  }
-
-  return <>{children}</>;
+  children: React.ReactNode
+  allowedRoles: string[]
 }
 
-export default RoleRoute;
+function RoleRoute({ children, allowedRoles }: Props) {
+  const { profile, loading } = useAuth()
+
+  if (loading) {
+    return null
+  }
+
+  // Админ бардык беттерге кирет
+  if (profile?.role === 'admin') {
+    return <>{children}</>
+  }
+
+  // Эгер роль жок же тизмеде жок болсо
+  if (!allowedRoles.includes(profile?.role || '')) {
+    return <Navigate to='/' replace />
+  }
+
+  return <>{children}</>
+}
+
+export default RoleRoute

@@ -3,6 +3,22 @@ import { formatPrice } from '../../utils/currency'
 import { useCashMovements } from '../../hooks/useCashMovements'
 import './AdminCashMonitor.scss'
 
+type TMovementStatus = 'pending' | 'approved' | 'rejected'
+type TMovementType = 'in' | 'out'
+
+type TCashMovement = {
+  id: string
+  status: TMovementStatus
+  movement_type: TMovementType
+  amount: number | string | null
+  requested_by?: string | null
+  source_name?: string | null
+  description?: string | null
+  created_at?: string | null
+  approved_by?: string | null
+  approved_at?: string | null
+}
+
 const CheckIcon = () => (
   <svg viewBox='0 0 24 24' aria-hidden='true'>
     <path
@@ -41,7 +57,7 @@ const TrashIcon = () => (
   </svg>
 )
 
-const AdminCashMonitor = () => {
+function AdminCashMonitor() {
   const {
     movements,
     loading,
@@ -56,36 +72,41 @@ const AdminCashMonitor = () => {
   const [busyId, setBusyId] = useState('')
   const [sectionBusy, setSectionBusy] = useState('')
 
-  const pendingMovements = useMemo(
-    () => (movements || []).filter((item: any) => item.status === 'pending'),
+  const safeMovements = useMemo(
+    () => ((movements || []) as TCashMovement[]).slice(),
     [movements]
+  )
+
+  const pendingMovements = useMemo(
+    () => safeMovements.filter(item => item.status === 'pending'),
+    [safeMovements]
   )
 
   const approvedInMovements = useMemo(
     () =>
-      (movements || []).filter(
-        (item: any) => item.status === 'approved' && item.movement_type === 'in'
+      safeMovements.filter(
+        item => item.status === 'approved' && item.movement_type === 'in'
       ),
-    [movements]
+    [safeMovements]
   )
 
   const approvedOutMovements = useMemo(
     () =>
-      (movements || []).filter(
-        (item: any) => item.status === 'approved' && item.movement_type === 'out'
+      safeMovements.filter(
+        item => item.status === 'approved' && item.movement_type === 'out'
       ),
-    [movements]
+    [safeMovements]
   )
 
   const rejectedMovements = useMemo(
-    () => (movements || []).filter((item: any) => item.status === 'rejected'),
-    [movements]
+    () => safeMovements.filter(item => item.status === 'rejected'),
+    [safeMovements]
   )
 
   const approvedInTotal = useMemo(
     () =>
       approvedInMovements.reduce(
-        (acc: number, item: any) => acc + Number(item.amount || 0),
+        (acc, item) => acc + Number(item.amount || 0),
         0
       ),
     [approvedInMovements]
@@ -94,7 +115,7 @@ const AdminCashMonitor = () => {
   const approvedOutTotal = useMemo(
     () =>
       approvedOutMovements.reduce(
-        (acc: number, item: any) => acc + Number(item.amount || 0),
+        (acc, item) => acc + Number(item.amount || 0),
         0
       ),
     [approvedOutMovements]
@@ -104,7 +125,7 @@ const AdminCashMonitor = () => {
     try {
       setBusyId(id)
       const { approveCashMovement } = await import('../../api/cashMovements')
-      await approveCashMovement(id, adminName)
+      await approveCashMovement(id, adminName.trim() || 'Администратор')
       await refetch()
     } catch (e: any) {
       console.error('APPROVE CASH MOVEMENT ERROR:', e)
@@ -118,7 +139,7 @@ const AdminCashMonitor = () => {
     try {
       setBusyId(id)
       const { rejectCashMovement } = await import('../../api/cashMovements')
-      await rejectCashMovement(id, adminName)
+      await rejectCashMovement(id, adminName.trim() || 'Администратор')
       await refetch()
     } catch (e: any) {
       console.error('REJECT CASH MOVEMENT ERROR:', e)
@@ -132,8 +153,9 @@ const AdminCashMonitor = () => {
     try {
       setBusyId(id)
       await removeOne(id)
-    } catch {
-      //
+    } catch (e: any) {
+      console.error('DELETE CASH MOVEMENT ERROR:', e)
+      alert(e?.message || 'Не удалось удалить запись')
     } finally {
       setBusyId('')
     }
@@ -141,19 +163,19 @@ const AdminCashMonitor = () => {
 
   const handleClearSection = async (
     key: string,
-    statuses: ('pending' | 'approved' | 'rejected')[],
-    type?: 'in' | 'out'
+    statuses: TMovementStatus[],
+    type?: TMovementType
   ) => {
     try {
       setSectionBusy(key)
 
       if (type) {
-        const ids = (movements || [])
+        const ids = safeMovements
           .filter(
-            (item: any) =>
+            item =>
               statuses.includes(item.status) && item.movement_type === type
           )
-          .map((item: any) => item.id)
+          .map(item => item.id)
 
         const { deleteCashMovements } = await import('../../api/cashMovements')
         await deleteCashMovements(ids)
@@ -162,6 +184,7 @@ const AdminCashMonitor = () => {
         await clearByStatus(statuses)
       }
     } catch (e: any) {
+      console.error('CLEAR CASH SECTION ERROR:', e)
       alert(e?.message || 'Не удалось очистить раздел')
     } finally {
       setSectionBusy('')
@@ -173,6 +196,7 @@ const AdminCashMonitor = () => {
       setSectionBusy('all')
       await clearAll()
     } catch (e: any) {
+      console.error('CLEAR ALL CASH MOVEMENTS ERROR:', e)
       alert(e?.message || 'Не удалось очистить журнал')
     } finally {
       setSectionBusy('')
@@ -180,7 +204,7 @@ const AdminCashMonitor = () => {
   }
 
   const renderCard = (
-    item: any,
+    item: TCashMovement,
     variant: 'pending' | 'approved-in' | 'approved-out' | 'rejected'
   ) => {
     const title =
@@ -269,14 +293,14 @@ const AdminCashMonitor = () => {
         <div className='admin-cash-header'>
           <div>
             <h1>Администрирование кассы</h1>
-            <p>Подтверждение операций по кассе</p>
+            <p>Подтверждение, отклонение и журнал кассовых операций</p>
           </div>
 
           <div className='admin-cash-admin-box'>
             <label>Ответственный администратор</label>
             <input
               value={adminName}
-              onChange={(e) => setAdminName(e.currentTarget.value)}
+              onChange={e => setAdminName(e.currentTarget.value)}
               placeholder='Введите имя администратора'
             />
           </div>
@@ -327,9 +351,7 @@ const AdminCashMonitor = () => {
                 type='button'
                 className='admin-cash-head-btn'
                 disabled={sectionBusy === 'pending'}
-                onClick={() =>
-                  handleClearSection('pending', ['pending'])
-                }
+                onClick={() => handleClearSection('pending', ['pending'])}
               >
                 <TrashIcon />
               </button>
@@ -344,7 +366,7 @@ const AdminCashMonitor = () => {
             </div>
           ) : (
             <div className='admin-cash-list'>
-              {pendingMovements.map((item: any) => renderCard(item, 'pending'))}
+              {pendingMovements.map(item => renderCard(item, 'pending'))}
             </div>
           )}
         </div>
@@ -372,7 +394,7 @@ const AdminCashMonitor = () => {
               <div className='admin-cash-empty'>Нет записей</div>
             ) : (
               <div className='admin-cash-list'>
-                {approvedInMovements.map((item: any) =>
+                {approvedInMovements.map(item =>
                   renderCard(item, 'approved-in')
                 )}
               </div>
@@ -401,7 +423,7 @@ const AdminCashMonitor = () => {
               <div className='admin-cash-empty'>Нет записей</div>
             ) : (
               <div className='admin-cash-list'>
-                {approvedOutMovements.map((item: any) =>
+                {approvedOutMovements.map(item =>
                   renderCard(item, 'approved-out')
                 )}
               </div>
@@ -418,9 +440,7 @@ const AdminCashMonitor = () => {
                 type='button'
                 className='admin-cash-head-btn'
                 disabled={sectionBusy === 'rejected'}
-                onClick={() =>
-                  handleClearSection('rejected', ['rejected'])
-                }
+                onClick={() => handleClearSection('rejected', ['rejected'])}
               >
                 <TrashIcon />
               </button>
@@ -431,7 +451,7 @@ const AdminCashMonitor = () => {
             <div className='admin-cash-empty'>Нет отклоненных операций</div>
           ) : (
             <div className='admin-cash-list'>
-              {rejectedMovements.map((item: any) => renderCard(item, 'rejected'))}
+              {rejectedMovements.map(item => renderCard(item, 'rejected'))}
             </div>
           )}
         </div>

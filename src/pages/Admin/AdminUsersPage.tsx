@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
-
+import "./AdminUsersPage.scss";
 type Profile = {
   id: string;
   email: string | null;
@@ -75,13 +75,16 @@ function AdminUsersPage() {
       }
 
       setUsers(data || []);
+    } catch (error: any) {
+      setMessageType("error");
+      setMessage(error?.message || "Не удалось загрузить пользователей");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadUsers();
+    void loadUsers();
   }, []);
 
   const filteredUsers = useMemo(() => {
@@ -97,7 +100,8 @@ function AdminUsersPage() {
         email.includes(q) ||
         role.includes(q) ||
         status.includes(q) ||
-        getRoleLabel(user.role).toLowerCase().includes(q)
+        getRoleLabel(user.role).toLowerCase().includes(q) ||
+        getStatusLabel(user.status).toLowerCase().includes(q)
       );
     });
   }, [users, search]);
@@ -121,8 +125,59 @@ function AdminUsersPage() {
       setUsers((prev) =>
         prev.map((user) => (user.id === id ? { ...user, role: newRole } : user))
       );
+
       setMessageType("success");
       setMessage("Роль успешно обновлена.");
+    } catch (error: any) {
+      setMessageType("error");
+      setMessage(error?.message || "Не удалось изменить роль");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const updateStatus = async (id: string, status: "approved" | "rejected") => {
+    try {
+      setActionLoadingId(id);
+      setMessage("");
+
+      const payload = {
+        status,
+        approved_at: status === "approved" ? new Date().toISOString() : null,
+      };
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(payload)
+        .eq("id", id);
+
+      if (error) {
+        setMessageType("error");
+        setMessage(`Ошибка обновления статуса: ${error.message}`);
+        return;
+      }
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === id
+            ? {
+                ...user,
+                status,
+                approved_at: status === "approved" ? new Date().toISOString() : null,
+              }
+            : user
+        )
+      );
+
+      setMessageType("success");
+      setMessage(
+        status === "approved"
+          ? "Пользователь успешно одобрен."
+          : "Пользователь отклонён."
+      );
+    } catch (error: any) {
+      setMessageType("error");
+      setMessage(error?.message || "Не удалось обновить статус");
     } finally {
       setActionLoadingId(null);
     }
@@ -133,7 +188,7 @@ function AdminUsersPage() {
       <div className="admin-page-header">
         <div>
           <h1>Пользователи</h1>
-          <p>Управление ролями, статусами и сотрудниками</p>
+          <p>Управление ролями, статусами и доступами сотрудников</p>
         </div>
       </div>
 
@@ -144,6 +199,10 @@ function AdminUsersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        <button type="button" onClick={loadUsers}>
+          Обновить
+        </button>
       </div>
 
       {message && (
@@ -164,12 +223,13 @@ function AdminUsersPage() {
                 <th>Статус</th>
                 <th>Регистрация</th>
                 <th>Одобрение</th>
+                <th>Действия</th>
               </tr>
             </thead>
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>Пользователи не найдены</td>
+                  <td colSpan={6}>Пользователи не найдены</td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
@@ -178,6 +238,7 @@ function AdminUsersPage() {
                   return (
                     <tr key={user.id}>
                       <td>{user.email || "-"}</td>
+
                       <td>
                         <select
                           value={user.role || ""}
@@ -191,20 +252,45 @@ function AdminUsersPage() {
                           ))}
                         </select>
                       </td>
+
                       <td>
                         <span className={getStatusClass(user.status)}>
                           {getStatusLabel(user.status)}
                         </span>
                       </td>
+
                       <td>
                         {user.created_at
                           ? new Date(user.created_at).toLocaleString("ru-RU")
                           : "-"}
                       </td>
+
                       <td>
                         {user.approved_at
                           ? new Date(user.approved_at).toLocaleString("ru-RU")
                           : "-"}
+                      </td>
+
+                      <td>
+                        <div className="admin-table-actions">
+                          <button
+                            type="button"
+                            className="admin-action-btn admin-action-btn--approve"
+                            disabled={isBusy}
+                            onClick={() => updateStatus(user.id, "approved")}
+                          >
+                            Одобрить
+                          </button>
+
+                          <button
+                            type="button"
+                            className="admin-action-btn admin-action-btn--reject"
+                            disabled={isBusy}
+                            onClick={() => updateStatus(user.id, "rejected")}
+                          >
+                            Отклонить
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

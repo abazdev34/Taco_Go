@@ -89,3 +89,8 @@ export async function rejectProfile(id: string): Promise<IProfileRow> {
 
   return data as IProfileRow;
 }
+import { createUserByAdmin, type CreateUserPayload } from "./admin";
+
+export async function createProfileAccount(payload: CreateUserPayload) {
+  return await createUserByAdmin(payload);
+}
