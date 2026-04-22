@@ -7,19 +7,38 @@ type Props = {
 }
 
 function RoleRoute({ children, allowedRoles }: Props) {
-  const { profile, loading } = useAuth()
+  const { profile, loading, user } = useAuth()
 
+  // 🔥 1. loading — норм UI көрсөт
   if (loading) {
-    return null
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        Жүктөлүүдө...
+      </div>
+    )
   }
 
-  // Админ бардык беттерге кирет
-  if (profile?.role === 'admin') {
+  // 🔥 2. эгер login жок болсо → login
+  if (!user) {
+    return <Navigate to='/login' replace />
+  }
+
+  // 🔥 3. profile жок болсо (кеч жүктөлгөндө)
+  if (!profile) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        Профиль жүктөлүүдө...
+      </div>
+    )
+  }
+
+  // 🔥 4. admin бардык жерге кирет
+  if (profile.role === 'admin') {
     return <>{children}</>
   }
 
-  // Эгер роль жок же тизмеде жок болсо
-  if (!allowedRoles.includes(profile?.role || '')) {
+  // 🔥 5. роль туура эмес болсо
+  if (!allowedRoles.includes(profile.role || '')) {
     return <Navigate to='/' replace />
   }
 

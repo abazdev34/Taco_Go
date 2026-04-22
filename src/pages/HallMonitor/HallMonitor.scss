@@ -1,259 +1,429 @@
-.hall-clean-tv {
-	min-height: 100vh;
-	padding: 14px;
-	background:
-		radial-gradient(circle at top left, rgba(245, 158, 11, 0.05), transparent 24%),
-		radial-gradient(circle at top right, rgba(34, 197, 94, 0.05), transparent 24%),
-		linear-gradient(135deg, #020617 0%, #0b1220 50%, #111827 100%);
-	color: #fff;
-	font-family: Inter, Arial, sans-serif;
-	box-sizing: border-box;
-	overflow: hidden;
-
-	&__error {
-		margin-bottom: 10px;
-		padding: 10px 14px;
-		border-radius: 12px;
-		background: rgba(239, 68, 68, 0.14);
-		color: #fecaca;
-		font-size: 14px;
-		font-weight: 700;
-	}
-
-	&__layout {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 14px;
-		height: calc(100vh - 28px);
-	}
+.mcd-hall {
+  position: relative;
+  min-height: 100vh;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(20, 14, 10, 0.55), rgba(20, 14, 10, 0.9)),
+    radial-gradient(circle at top right, rgba(255, 196, 0, 0.16), transparent 22%),
+    radial-gradient(circle at bottom left, rgba(255, 82, 0, 0.12), transparent 18%),
+    #1a0f08;
+  color: #fff7e6;
+  font-family: Inter, system-ui, sans-serif;
 }
 
-.clean-column {
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-	border-radius: 28px;
-	overflow: hidden;
-
-	&--preparing {
-		background: linear-gradient(
-			180deg,
-			rgba(245, 158, 11, 0.08) 0%,
-			rgba(15, 23, 42, 0.95) 100%
-		);
-	}
-
-	&--ready {
-		background: linear-gradient(
-			180deg,
-			rgba(34, 197, 94, 0.08) 0%,
-			rgba(15, 23, 42, 0.95) 100%
-		);
-	}
-
-	&__head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 18px 20px 10px;
-
-		h2 {
-			margin: 0;
-			font-size: 26px;
-			font-weight: 800;
-			letter-spacing: 0.08em;
-			text-transform: uppercase;
-			color: rgba(255, 255, 255, 0.88);
-		}
-
-		span {
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			min-width: 40px;
-			height: 40px;
-			padding: 0 12px;
-			border-radius: 999px;
-			background: rgba(255, 255, 255, 0.06);
-			color: rgba(255, 255, 255, 0.88);
-			font-size: 18px;
-			font-weight: 800;
-		}
-	}
-
-	&__body {
-		flex: 1;
-		min-height: 0;
-		padding: 10px 16px 16px;
-		overflow: hidden;
-	}
+.mcd-hall__overlay {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 
-.clean-scroll {
-	height: 100%;
-	width: 100%;
-
-	&--animated {
-		animation: verticalLoop 24s linear infinite;
-		will-change: transform;
-	}
+.mcd-hall-banner {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 16px 28px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2ad96b, #8fffad);
+  color: #102417;
+  font-size: 22px;
+  font-weight: 900;
+  box-shadow: 0 18px 38px rgba(53, 208, 127, 0.26);
+  animation: mcdBannerPop 2.6s ease;
 }
 
-.clean-grid {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 14px;
-	align-content: start;
+.mcd-hall-error {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 92, 92, 0.12);
+  border: 1px solid rgba(255, 92, 92, 0.24);
+  color: #ffb9b9;
+  font-weight: 700;
 }
 
-.clean-number {
-	height: 112px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: 22px;
-	font-size: 40px;
-	font-weight: 900;
-	letter-spacing: 0.02em;
-	line-height: 1;
-	font-variant-numeric: tabular-nums;
-	user-select: none;
-	transition:
-		transform 0.28s ease,
-		background 0.28s ease,
-		box-shadow 0.28s ease,
-		opacity 0.28s ease;
-
-	&--preparing {
-		background: rgba(245, 158, 11, 0.12);
-		color: #fff7ed;
-	}
-
-	&--ready {
-		background: rgba(34, 197, 94, 0.12);
-		color: #f0fdf4;
-	}
-
-	&--pop {
-		animation: popIn 0.6s ease-out, glowPulse 1.2s ease-in-out 2;
-		background: rgba(74, 222, 128, 0.24);
-		box-shadow: 0 0 28px rgba(74, 222, 128, 0.22);
-	}
+.mcd-hall__shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) 380px;
+  gap: 20px;
+  min-height: calc(100vh - 48px);
 }
 
-.clean-empty {
-	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: 20px;
-	background: rgba(255, 255, 255, 0.02);
-	font-size: 40px;
-	font-weight: 800;
-	color: rgba(255, 255, 255, 0.24);
+.mcd-board,
+.mcd-menu {
+  background: rgba(22, 15, 10, 0.78);
+  border: 1px solid rgba(255, 205, 94, 0.14);
+  border-radius: 34px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
 }
 
-@keyframes popIn {
-	0% {
-		transform: scale(0.78);
-		opacity: 0;
-	}
-
-	55% {
-		transform: scale(1.1);
-		opacity: 1;
-	}
-
-	100% {
-		transform: scale(1);
-		opacity: 1;
-	}
+.mcd-board {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-@keyframes glowPulse {
-	0%,
-	100% {
-		box-shadow: 0 0 10px rgba(74, 222, 128, 0.12);
-	}
-
-	50% {
-		box-shadow: 0 0 30px rgba(74, 222, 128, 0.32);
-	}
+.mcd-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 
-@keyframes verticalLoop {
-	0% {
-		transform: translateY(0);
-	}
-
-	100% {
-		transform: translateY(-50%);
-	}
+.mcd-brand__logo {
+  width: 92px;
+  height: 92px;
+  border-radius: 24px;
+  object-fit: cover;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
 }
 
-@media (max-width: 1400px) {
-	.clean-number {
-		height: 100px;
-		font-size: 36px;
-	}
+.mcd-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 196, 0, 0.14);
+  border: 1px solid rgba(255, 196, 0, 0.24);
+  color: #ffd45c;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
 }
 
-@media (max-width: 1024px) {
-	.hall-clean-tv {
-		&__layout {
-			grid-template-columns: 1fr;
-			height: auto;
-		}
-	}
+.mcd-board__hero h1 {
+  margin: 10px 0 8px;
+  font-size: clamp(36px, 3.5vw, 60px);
+  line-height: 0.95;
+  font-weight: 900;
+  color: #fff5d8;
+}
 
-	.clean-column {
-		min-height: 460px;
-	}
+.mcd-board__hero p {
+  margin: 0;
+  color: rgba(255, 244, 214, 0.8);
+  font-size: 16px;
+}
+
+.mcd-board__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  flex: 1;
+}
+
+.mcd-column {
+  border-radius: 30px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mcd-column--preparing {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 174, 0, 0.16),
+    rgba(255, 255, 255, 0.04)
+  );
+  border: 1px solid rgba(255, 184, 77, 0.18);
+}
+
+.mcd-column--ready {
+  background: linear-gradient(
+    180deg,
+    rgba(53, 208, 127, 0.16),
+    rgba(255, 255, 255, 0.04)
+  );
+  border: 1px solid rgba(126, 240, 174, 0.18);
+}
+
+.mcd-column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.mcd-column__head h2 {
+  margin: 0;
+  font-size: clamp(24px, 2.1vw, 34px);
+  font-weight: 900;
+  color: #fff5d8;
+}
+
+.mcd-column__head span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.mcd-column__body {
+  flex: 1;
+}
+
+.mcd-empty {
+  min-height: 220px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: rgba(255, 244, 214, 0.74);
+  font-size: 24px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mcd-empty--menu {
+  min-height: 180px;
+  font-size: 18px;
+}
+
+.mcd-number-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.mcd-number {
+  min-height: 128px;
+  border-radius: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(38px, 4.4vw, 70px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.mcd-number--preparing {
+  background: rgba(255, 174, 0, 0.16);
+  border: 2px solid rgba(255, 193, 77, 0.24);
+  color: #ffd88d;
+}
+
+.mcd-number--ready {
+  background: rgba(53, 208, 127, 0.16);
+  border: 2px solid rgba(126, 240, 174, 0.24);
+  color: #c6f7d8;
+}
+
+.mcd-number--pop {
+  animation: mcdNumberPop 0.8s ease;
+}
+
+.mcd-menu {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mcd-menu__head {
+  margin-bottom: 16px;
+}
+
+.mcd-menu__head h3 {
+  margin: 10px 0 0;
+  font-size: 30px;
+  font-weight: 900;
+  color: #fff5d8;
+}
+
+.mcd-menu__viewport {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+}
+
+.mcd-menu__track {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mcd-menu__track--animated {
+  animation: mcdMenuTicker 20s linear infinite;
+}
+
+.mcd-menu-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 205, 94, 0.1);
+}
+
+.mcd-menu-card__image {
+  width: 96px;
+  height: 96px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.mcd-menu-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mcd-menu-card__body h4 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.2;
+  color: #fff4d2;
+  font-weight: 800;
+}
+
+.mcd-menu-card__body strong {
+  color: #ffd76b;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+@keyframes mcdNumberPop {
+  0% {
+    transform: scale(0.92);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 34px rgba(126, 240, 174, 0.22);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes mcdMenuTicker {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes mcdBannerPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-18px) scale(0.92);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px) scale(0.98);
+  }
+}
+
+@media (max-width: 1280px) {
+  .mcd-hall__shell {
+    grid-template-columns: 1fr;
+  }
+
+  .mcd-menu {
+    min-height: 340px;
+  }
+
+  .mcd-menu__track {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mcd-menu__track--animated {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .mcd-hall {
+    padding: 16px;
+  }
+
+  .mcd-board__columns {
+    grid-template-columns: 1fr;
+  }
+
+  .mcd-number-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mcd-brand {
+    align-items: flex-start;
+  }
+
+  .mcd-brand__logo {
+    width: 76px;
+    height: 76px;
+  }
 }
 
 @media (max-width: 640px) {
-	.hall-clean-tv {
-		padding: 10px;
+  .mcd-board,
+  .mcd-menu {
+    border-radius: 24px;
+  }
 
-		&__layout {
-			gap: 10px;
-		}
-	}
+  .mcd-board {
+    padding: 16px;
+  }
 
-	.clean-column {
-		border-radius: 20px;
+  .mcd-menu {
+    padding: 16px;
+  }
 
-		&__head {
-			padding: 14px 14px 8px;
+  .mcd-number-grid {
+    grid-template-columns: 1fr;
+  }
 
-			h2 {
-				font-size: 20px;
-			}
+  .mcd-number {
+    min-height: 96px;
+    font-size: 42px;
+  }
 
-			span {
-				min-width: 34px;
-				height: 34px;
-				font-size: 16px;
-			}
-		}
+  .mcd-menu__track {
+    grid-template-columns: 1fr;
+  }
 
-		&__body {
-			padding: 8px 12px 12px;
-		}
-	}
+  .mcd-brand {
+    flex-direction: column;
+    gap: 12px;
+  }
 
-	.clean-grid {
-		grid-template-columns: 1fr;
-		gap: 10px;
-	}
-
-	.clean-number {
-		height: 84px;
-		font-size: 30px;
-		border-radius: 16px;
-	}
-
-	.clean-empty {
-		font-size: 26px;
-	}
+  .mcd-hall-banner {
+    top: 14px;
+    font-size: 18px;
+    padding: 14px 20px;
+  }
 }

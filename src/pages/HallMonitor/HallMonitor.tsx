@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import '../Navbar/monitor.scss'
 import { useOrders } from '../../hooks/useOrders'
 import { fetchMenuItems } from '../../api/menuItems'
 import { IOrderRow } from '../../types/order'
@@ -13,6 +12,7 @@ import {
   getOrderPlaceValue,
 } from '../../utils/orderHelpers'
 import logoImg from '../../assets/img/logo-burritos.jpg'
+import './HallMonitor.scss'
 
 type THallMenuCategory = {
   id?: string
@@ -32,6 +32,7 @@ type THallMenuItem = {
   is_active?: boolean
   sort_order?: number | null
   categories?: THallMenuCategory | null
+  category?: string | null
 }
 
 const DEFAULT_IMAGE =
@@ -39,6 +40,9 @@ const DEFAULT_IMAGE =
 
 const getItemImage = (item: THallMenuItem) =>
   item.image_url || item.image || item.photo || DEFAULT_IMAGE
+
+const getCategoryName = (item: THallMenuItem) =>
+  item.categories?.name || item.categories?.title || item.category || ''
 
 const uniqueOrdersById = <T extends { id: string }>(orders: T[]) => {
   const map = new Map<string, T>()
@@ -74,6 +78,7 @@ function HallMonitor() {
     if (order.daily_order_number) {
       return String(order.daily_order_number).padStart(3, '0')
     }
+
     return getDailyOrderNumber(order, numberingOrders)
   }
 
@@ -85,6 +90,13 @@ function HallMonitor() {
 
         const prepared = (data || [])
           .filter((item: THallMenuItem) => item.is_active !== false)
+          .filter((item: THallMenuItem) => {
+            const categoryName = getCategoryName(item).toLowerCase().trim()
+            return (
+              categoryName.includes('популяр') ||
+              categoryName.includes('popular')
+            )
+          })
           .sort((a: THallMenuItem, b: THallMenuItem) => {
             const categorySortA = a.categories?.sort_order ?? 0
             const categorySortB = b.categories?.sort_order ?? 0
@@ -228,52 +240,52 @@ function HallMonitor() {
   }, [readyOrders])
 
   const menuTickerItems = useMemo(() => {
-    if (menuItems.length <= 3) return menuItems
+    if (menuItems.length <= 4) return menuItems
     return [...menuItems, ...menuItems]
   }, [menuItems])
 
   return (
-    <div className='hall-tv-page'>
-      <div className='hall-tv-bg-blur' />
+    <div className='mcd-hall'>
+      <div className='mcd-hall__overlay' />
 
       {showReadyBanner && (
-        <div className='hall-tv-banner'>
+        <div className='mcd-hall-banner'>
           <span>Заказ готов</span>
         </div>
       )}
 
-      {error && <div className='hall-tv-error'>{error}</div>}
+      {error && <div className='mcd-hall-error'>{error}</div>}
 
-      <div className='hall-tv-shell'>
-        <section className='hall-tv-board'>
-          <div className='hall-tv-board__hero'>
-            <div className='hall-tv-brand'>
-              <img src={logoImg} alt='Бурритос' className='hall-tv-brand__logo' />
+      <div className='mcd-hall__shell'>
+        <section className='mcd-board'>
+          <div className='mcd-board__hero'>
+            <div className='mcd-brand'>
+              <img src={logoImg} alt='Бурритос' className='mcd-brand__logo' />
               <div>
-                <span className='hall-tv-badge'>Mexican Grill</span>
-                <h1>Статус заказов</h1>
-                <p>Следите за номером вашего заказа на экране</p>
+                <span className='mcd-badge'>Mexican Grill</span>
+                <h1>Номера заказов</h1>
+                <p>Следите за экраном и ожидайте вызова</p>
               </div>
             </div>
           </div>
 
-          <div className='hall-tv-columns'>
-            <section className='hall-tv-column hall-tv-column--preparing'>
-              <div className='hall-tv-column__head'>
+          <div className='mcd-board__columns'>
+            <section className='mcd-column mcd-column--preparing'>
+              <div className='mcd-column__head'>
                 <h2>Готовится</h2>
                 <span>{preparingOrders.length}</span>
               </div>
 
-              <div className='hall-tv-column__body'>
+              <div className='mcd-column__body'>
                 {loading ? (
-                  <div className='hall-tv-empty'>Загрузка...</div>
+                  <div className='mcd-empty'>Загрузка...</div>
                 ) : preparingOrders.length === 0 ? (
-                  <div className='hall-tv-empty'>Нет заказов</div>
+                  <div className='mcd-empty'>Нет заказов</div>
                 ) : (
-                  <div className='hall-tv-number-grid'>
+                  <div className='mcd-number-grid'>
                     {preparingOrders.map(order => (
                       <div
-                        className='hall-tv-number hall-tv-number--preparing'
+                        className='mcd-number mcd-number--preparing'
                         key={order.id}
                       >
                         {getDisplayNumber(order)}
@@ -284,24 +296,24 @@ function HallMonitor() {
               </div>
             </section>
 
-            <section className='hall-tv-column hall-tv-column--ready'>
-              <div className='hall-tv-column__head'>
+            <section className='mcd-column mcd-column--ready'>
+              <div className='mcd-column__head'>
                 <h2>Готов</h2>
                 <span>{readyOrders.length}</span>
               </div>
 
-              <div className='hall-tv-column__body'>
+              <div className='mcd-column__body'>
                 {loading ? (
-                  <div className='hall-tv-empty'>Загрузка...</div>
+                  <div className='mcd-empty'>Загрузка...</div>
                 ) : readyOrders.length === 0 ? (
-                  <div className='hall-tv-empty'>Нет готовых заказов</div>
+                  <div className='mcd-empty'>Нет готовых</div>
                 ) : (
-                  <div className='hall-tv-number-grid'>
+                  <div className='mcd-number-grid'>
                     {readyOrders.map(order => (
                       <div
-                        className={`hall-tv-number hall-tv-number--ready ${
+                        className={`mcd-number mcd-number--ready ${
                           highlightedIds.includes(order.id)
-                            ? 'hall-tv-number--pop'
+                            ? 'mcd-number--pop'
                             : ''
                         }`}
                         key={order.id}
@@ -316,34 +328,34 @@ function HallMonitor() {
           </div>
         </section>
 
-        <aside className='hall-tv-menu'>
-          <div className='hall-tv-menu__head'>
-            <span className='hall-tv-badge'>Меню</span>
-            <h3>Популярные блюда</h3>
+        <aside className='mcd-menu'>
+          <div className='mcd-menu__head'>
+            <span className='mcd-badge'>Популярные</span>
+            <h3>Лучшие позиции</h3>
           </div>
 
-          <div className='hall-tv-menu__viewport'>
+          <div className='mcd-menu__viewport'>
             {menuLoading ? (
-              <div className='hall-tv-empty hall-tv-empty--menu'>
-                Загрузка меню...
-              </div>
+              <div className='mcd-empty mcd-empty--menu'>Загрузка меню...</div>
             ) : menuItems.length === 0 ? (
-              <div className='hall-tv-empty hall-tv-empty--menu'>Меню пустое</div>
+              <div className='mcd-empty mcd-empty--menu'>
+                Нет блюд в категории “Популярные”
+              </div>
             ) : (
               <div
-                className={`hall-tv-menu__track ${
-                  menuItems.length > 3 ? 'hall-tv-menu__track--animated' : ''
+                className={`mcd-menu__track ${
+                  menuItems.length > 4 ? 'mcd-menu__track--animated' : ''
                 }`}
               >
                 {menuTickerItems.map((item, index) => (
-                  <article className='hall-tv-menu-card' key={`${item.id}-${index}`}>
+                  <article className='mcd-menu-card' key={`${item.id}-${index}`}>
                     <img
                       src={getItemImage(item)}
                       alt={item.title}
-                      className='hall-tv-menu-card__image'
+                      className='mcd-menu-card__image'
                     />
 
-                    <div className='hall-tv-menu-card__body'>
+                    <div className='mcd-menu-card__body'>
                       <h4>{item.title}</h4>
                       <strong>{formatPrice(Number(item.price || 0))}</strong>
                     </div>
