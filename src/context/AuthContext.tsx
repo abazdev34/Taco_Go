@@ -15,28 +15,24 @@ type AuthContextType = {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 async function loadProfile(userId: string): Promise<Profile | null> {
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, role, status, approved_at, approved_by, created_at')
-      .eq('id', userId)
-      .maybeSingle()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, role, status, approved_at, approved_by, created_at')
+    .eq('id', userId)
+    .maybeSingle()
 
-    if (error) {
-      console.error('PROFILE ERROR:', error.message)
-      return null
-    }
-
-    return data as Profile | null
-  } catch (err) {
-    console.error('PROFILE LOAD ERROR:', err)
+  if (error) {
+    console.error('PROFILE LOAD ERROR:', error.message)
     return null
   }
+
+  return data as Profile | null
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,27 +40,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
+  const applySession = async (session: Session | null) => {
+    const currentUser = session?.user ?? null
 
-    const applySession = async (session: Session | null) => {
-      const currentUser = session?.user ?? null
+    setUser(currentUser)
 
-      if (!active) return
-      setUser(currentUser)
-
-      if (!currentUser) {
-        setProfile(null)
-        setLoading(false)
-        return
-      }
-
-      const prof = await loadProfile(currentUser.id)
-
-      if (!active) return
-      setProfile(prof)
+    if (!currentUser) {
+      setProfile(null)
       setLoading(false)
+      return
     }
+
+    const prof = await loadProfile(currentUser.id)
+    setProfile(prof)
+    setLoading(false)
+  }
+
+  const refreshProfile = async () => {
+    if (!user?.id) return
+    const prof = await loadProfile(user.id)
+    setProfile(prof)
+  }
+
+  useEffect(() => {
+    let mounted = true
 
     const init = async () => {
       try {
@@ -79,10 +78,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('GET SESSION ERROR:', error.message)
         }
 
-        await applySession(session)
+        if (!mounted) return
+
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+
+        if (!currentUser) {
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+
+        const prof = await loadProfile(currentUser.id)
+
+        if (!mounted) return
+
+        setProfile(prof)
+        setLoading(false)
       } catch (err) {
         console.error('AUTH INIT ERROR:', err)
-        if (!active) return
+
+        if (!mounted) return
+
         setUser(null)
         setProfile(null)
         setLoading(false)
@@ -94,18 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return
-      void applySession(session)
+      setTimeout(() => {
+        if (!mounted) return
+        void applySession(session)
+      }, 0)
     })
 
-    const emergencyStop = setTimeout(() => {
-      if (!active) return
-      setLoading(false)
-    }, 5000)
-
     return () => {
-      active = false
-      clearTimeout(emergencyStop)
+      mounted = false
       subscription.unsubscribe()
     }
   }, [])
@@ -126,20 +139,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    try {
-      setLoading(true)
-      await supabase.auth.signOut()
-    } catch (err) {
-      console.error('SIGN OUT ERROR:', err)
-    } finally {
-      setUser(null)
-      setProfile(null)
-      setLoading(false)
-    }
+    setLoading(true)
+
+    await supabase.auth.signOut()
+
+    setUser(null)
+    setProfile(null)
+    setLoading(false)
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ user, profile, loading, signIn, signOut, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   )

@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchActiveOrders } from '../api/orders'
-import { IOrderRow } from '../types/order'
 import { supabase } from '../lib/supabase'
+import { IOrderRow } from '../types/order'
 
 const ACTIVE_STATUSES = ['pending', 'new', 'preparing', 'ready']
+const MAX_ACTIVE_ORDERS = 200
 
 function getOrderTime(order: IOrderRow) {
-  const raw = order?.created_at || order?.updated_at || ''
+  const raw = order?.updated_at || order?.created_at || ''
   const time = raw ? new Date(raw).getTime() : 0
   return Number.isNaN(time) ? 0 : time
+}
+
+function isActiveOrder(order?: IOrderRow | null) {
+  return !!order?.id && ACTIVE_STATUSES.includes(String(order.status || ''))
 }
 
 function mergeOrder(oldOrder: IOrderRow, newOrder: IOrderRow): IOrderRow {
@@ -19,44 +24,59 @@ function mergeOrder(oldOrder: IOrderRow, newOrder: IOrderRow): IOrderRow {
       Array.isArray(newOrder.items) && newOrder.items.length > 0
         ? newOrder.items
         : oldOrder.items,
-    assembly_progress:
-      Array.isArray(newOrder.assembly_progress)
-        ? newOrder.assembly_progress
-        : oldOrder.assembly_progress,
+    assembly_progress: Array.isArray(newOrder.assembly_progress)
+      ? newOrder.assembly_progress
+      : oldOrder.assembly_progress,
   }
-}
-
-function isActiveOrder(order?: IOrderRow | null) {
-  return !!order && ACTIVE_STATUSES.includes(order.status)
 }
 
 function sortOrders(list: IOrderRow[]) {
   return [...list].sort((a, b) => {
-    const aTime = getOrderTime(a)
     const bTime = getOrderTime(b)
+    const aTime = getOrderTime(a)
 
-    if (aTime !== bTime) {
-      return bTime - aTime
-    }
+    if (bTime !== aTime) return bTime - aTime
 
-    return Number(b?.order_number || 0) - Number(a?.order_number || 0)
+    return (
+      Number(b.daily_order_number || b.order_number || 0) -
+      Number(a.daily_order_number || a.order_number || 0)
+    )
   })
 }
 
-function upsertOrder(prev: IOrderRow[], incoming: IOrderRow) {
-  const index = prev.findIndex((o) => o.id === incoming.id)
+function normalizeOrders(list: IOrderRow[]) {
+  const map = new Map<string, IOrderRow>()
 
-  if (index === -1) {
-    return sortOrders([incoming, ...prev])
+  for (const order of list) {
+    if (!isActiveOrder(order)) continue
+
+    const existing = map.get(order.id)
+    map.set(order.id, existing ? mergeOrder(existing, order) : order)
   }
 
-  const current = prev[index]
-  const merged = mergeOrder(current, incoming)
+  return sortOrders(Array.from(map.values())).slice(0, MAX_ACTIVE_ORDERS)
+}
+
+function upsertOrder(prev: IOrderRow[], incoming: IOrderRow) {
+  if (!isActiveOrder(incoming)) {
+    return prev.filter(order => order.id !== incoming.id)
+  }
+
+  const index = prev.findIndex(order => order.id === incoming.id)
+
+  if (index === -1) {
+    return normalizeOrders([incoming, ...prev])
+  }
 
   const next = [...prev]
-  next[index] = merged
+  next[index] = mergeOrder(next[index], incoming)
 
-  return sortOrders(next)
+  return normalizeOrders(next)
+}
+
+function removeOrder(prev: IOrderRow[], id?: string) {
+  if (!id) return prev
+  return prev.filter(order => order.id !== id)
 }
 
 export function useOrders() {
@@ -64,8 +84,10 @@ export function useOrders() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const mountedRef = useRef(true)
+
   useEffect(() => {
-    let mounted = true
+    mountedRef.current = true
 
     const load = async () => {
       try {
@@ -74,83 +96,73 @@ export function useOrders() {
 
         const data = await fetchActiveOrders()
 
-        if (!mounted) return
+        if (!mountedRef.current) return
 
-        const safeData = Array.isArray(data) ? data : []
-        const activeOnly = safeData.filter((order) => isActiveOrder(order))
-
-        setOrders(sortOrders(activeOnly))
+        setOrders(normalizeOrders(Array.isArray(data) ? data : []))
       } catch (e: any) {
         console.error('LOAD ACTIVE ORDERS ERROR:', e)
 
-        if (!mounted) return
+        if (!mountedRef.current) return
 
         setError(e?.message || 'Не удалось загрузить заказы')
         setOrders([])
       } finally {
-        if (mounted) setLoading(false)
+        if (mountedRef.current) setLoading(false)
       }
     }
 
     void load()
 
     const channel = supabase
-      .channel('orders-active')
+      .channel('orders-active-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        (payload) => {
-          if (!mounted) return
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        payload => {
+          if (!mountedRef.current) return
 
           const newRow = payload.new as IOrderRow | undefined
           const oldRow = payload.old as IOrderRow | undefined
 
-          setOrders((prev) => {
-            const safePrev = Array.isArray(prev) ? prev : []
-
+          setOrders(prev => {
             if (payload.eventType === 'INSERT' && newRow) {
-              if (!isActiveOrder(newRow)) return safePrev
-              return upsertOrder(safePrev, newRow)
+              return upsertOrder(prev, newRow)
             }
 
             if (payload.eventType === 'UPDATE' && newRow) {
-              const exists = safePrev.some((o) => o.id === newRow.id)
-              const active = isActiveOrder(newRow)
-
-              if (active) {
-                return upsertOrder(safePrev, newRow)
-              }
-
-              if (exists && !active) {
-                return safePrev.filter((o) => o.id !== newRow.id)
-              }
-
-              return safePrev
+              return upsertOrder(prev, newRow)
             }
 
-            if (payload.eventType === 'DELETE' && oldRow?.id) {
-              return safePrev.filter((o) => o.id !== oldRow.id)
+            if (payload.eventType === 'DELETE') {
+              return removeOrder(prev, oldRow?.id)
             }
 
-            return safePrev
+            return prev
           })
         }
       )
-      .subscribe((status) => {
-        console.log('ACTIVE ORDERS CHANNEL STATUS:', status)
+      .subscribe(status => {
+        if (!mountedRef.current) return
 
-        if (!mounted) return
-
-        if (status === 'CHANNEL_ERROR') {
-          setError('Realtime connection error')
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setError('Ошибка realtime соединения')
         }
       })
 
     return () => {
-      mounted = false
+      mountedRef.current = false
       void supabase.removeChannel(channel)
     }
   }, [])
 
-  return { orders, loading, error }
+  return {
+    orders,
+    loading,
+    error,
+    setOrders,
+  }
 }
