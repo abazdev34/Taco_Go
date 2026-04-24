@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchMenuItems } from '../../api/menuItems'
-import { createOrder, updateCashierOrder } from '../../api/orders'
+import {
+  archiveCompletedOrdersByDay,
+  createOrder,
+  updateCashierOrder,
+} from '../../api/orders'
 import { createCashMovement } from '../../api/cashMovements'
 import { closeCashSession, openCashSession } from '../../api/cashSessions'
 import { useAllOrders } from '../../hooks/useAllOrders'
@@ -12,7 +16,10 @@ import {
 } from '../../lib/orderSync'
 import { formatPrice } from '../../utils/currency'
 import { calculateCashboxAmount } from '../../utils/cashbox'
-import { generateCashReportPdf } from '../../utils/report'
+import {
+  generateCashReportPdf,
+  generateDayReportPdf,
+} from '../../utils/report'
 import { sendEmailReport } from '../../utils/email'
 import {
   buildDailyNumberOrders,
@@ -410,7 +417,7 @@ function CashierMonitor() {
   const visibleOrders = useMemo(
     () =>
       allOrders.filter(
-        order => order.status !== 'cancelled' && order.status !== 'completed'
+        order => order.status !== ('cancelled' as any) && order.status !== 'completed'
       ),
     [allOrders]
   )
@@ -708,7 +715,9 @@ function CashierMonitor() {
         await createCashMovement({
           movement_type: 'in',
           amount: Number(existingOrder.total || 0),
-          description: `Выдан заказ №${existingOrder.order_number || ''}`.trim(),
+          description: `Выдан заказ №${
+            existingOrder.daily_order_number || existingOrder.order_number || ''
+          }`.trim(),
           source_name: 'Выдан заказ',
           requested_by: cashierName.trim() || 'Кассир',
           status: 'approved',
@@ -739,7 +748,7 @@ function CashierMonitor() {
       const optimisticOrder = existingOrder
         ? ({
             ...existingOrder,
-            status: 'cancelled',
+            status: 'cancelled' as any,
             cashier_status: null,
             cashier_name: cashierName.trim() || 'Кассир',
             paid_at: paidAt,
@@ -752,7 +761,7 @@ function CashierMonitor() {
             order.id === id
               ? {
                   ...order,
-                  status: 'cancelled',
+                  status: 'cancelled' as any,
                   cashier_status: null,
                   cashier_name: cashierName.trim() || 'Кассир',
                   paid_at: paidAt,
@@ -763,7 +772,7 @@ function CashierMonitor() {
       )
 
       await updateCashierOrder(id, {
-        status: 'cancelled',
+        status: 'cancelled' as any,
         cashier_status: null,
         cashier_name: cashierName.trim() || 'Кассир',
         paid_at: paidAt,
@@ -821,6 +830,157 @@ function CashierMonitor() {
     } catch (e: any) {
       console.error('CASH REQUEST ERROR:', e)
       alert(e?.message || 'Не удалось выполнить операцию')
+    }
+  }
+
+  const handleCloseDay = async () => {
+    const today = new Date()
+
+    const startOfDay = new Date(today)
+    startOfDay.setHours(0, 0, 0, 0)
+
+    const endOfDay = new Date(today)
+    endOfDay.setHours(23, 59, 59, 999)
+
+    const completedOrders = localOrders.filter(order => {
+      const createdAt = new Date(order.created_at)
+      return (
+        createdAt >= startOfDay &&
+        createdAt <= endOfDay &&
+        order.status === 'completed'
+      )
+    })
+
+    if (!completedOrders.length) {
+      alert('За сегодня нет завершённых заказов')
+      return
+    }
+
+    const confirmStart = window.confirm(
+      'Сформировать PDF, открыть email и отправить завершённые заказы за сегодня в архив?'
+    )
+
+    if (!confirmStart) return
+
+    try {
+      const totalOrders = completedOrders.length
+
+      const totalCashOrders = completedOrders
+        .filter(order => order.payment_method === 'cash')
+        .reduce((sum, order) => sum + Number(order.total || 0), 0)
+
+      const totalOnlineOrders = completedOrders
+        .filter(order => order.payment_method === 'online')
+        .reduce((sum, order) => sum + Number(order.total || 0), 0)
+
+      const totalOrdersAmount = totalCashOrders + totalOnlineOrders
+
+      const itemsMap = new Map<
+        string,
+        { title: string; quantity: number; total: number }
+      >()
+
+      completedOrders.forEach(order => {
+        ;((order.items || []) as any[]).forEach((item: any) => {
+          const key = item.id || item.title
+          const quantity = Number(item.quantity || 1)
+          const lineTotal = Number(item.price || 0) * quantity
+
+          if (!itemsMap.has(key)) {
+            itemsMap.set(key, {
+              title: item.title,
+              quantity: 0,
+              total: 0,
+            })
+          }
+
+          const current = itemsMap.get(key)!
+          current.quantity += quantity
+          current.total += lineTotal
+        })
+      })
+
+      const itemsSummary = Array.from(itemsMap.values()).sort(
+        (a, b) => b.quantity - a.quantity || b.total - a.total
+      )
+
+      generateCashReportPdf({
+        dateLabel: today.toLocaleDateString('ru-RU'),
+        totalOrders,
+        totalCashOrders,
+        totalOnlineOrders,
+        totalOrdersAmount,
+        totalIn: cashboxStats.approvedIn,
+        totalOut: cashboxStats.approvedOut,
+        cashboxBalance: cashboxStats.finalAmount,
+        movements: (movements || [])
+          .filter((item: any) => {
+            const sourceDate = item.approved_at || item.created_at
+            if (!sourceDate) return false
+
+            const d = new Date(sourceDate)
+            return item.status === 'approved' && d >= startOfDay && d <= endOfDay
+          })
+          .map((item: any) => ({
+            createdAt: new Date(
+              item.approved_at || item.created_at || ''
+            ).toLocaleString('ru-RU'),
+            type: item.movement_type === 'in' ? 'Внесение' : 'Изъятие',
+            amount: Number(item.amount || 0),
+            requestedBy: item.requested_by || '—',
+            sourceName: item.source_name || '—',
+            description: item.description || '—',
+            approvedBy: item.approved_by || '—',
+          })),
+      })
+
+      generateDayReportPdf({
+        dateLabel: today.toLocaleDateString('ru-RU'),
+        totalOrders,
+        totalRevenue: totalOrdersAmount,
+        itemsSummary,
+      })
+
+      sendEmailReport(
+        'Отчет за день',
+        `
+Дата: ${today.toLocaleDateString('ru-RU')}
+
+Завершённых заказов: ${totalOrders}
+Наличные: ${formatPrice(totalCashOrders)}
+Онлайн: ${formatPrice(totalOnlineOrders)}
+Общая выручка: ${formatPrice(totalOrdersAmount)}
+
+Подтверждено внесений: ${formatPrice(cashboxStats.approvedIn)}
+Подтверждено изъятий: ${formatPrice(cashboxStats.approvedOut)}
+Остаток в кассе: ${formatPrice(cashboxStats.finalAmount)}
+
+Топ блюд:
+${itemsSummary
+  .slice(0, 10)
+  .map(item => `- ${item.title}: ${item.quantity} шт. / ${formatPrice(item.total)}`)
+  .join('\n')}
+        `.trim()
+      )
+
+      const targetDay = today.toISOString().slice(0, 10)
+      await archiveCompletedOrdersByDay(targetDay)
+
+      setLocalOrders(prev =>
+        prev.filter(order => {
+          const createdAt = new Date(order.created_at)
+          return !(
+            createdAt >= startOfDay &&
+            createdAt <= endOfDay &&
+            order.status === 'completed'
+          )
+        })
+      )
+
+      alert('День закрыт. Завершённые заказы отправлены в архив.')
+    } catch (e: any) {
+      console.error('CLOSE DAY ERROR:', e)
+      alert(e?.message || 'Не удалось закрыть день')
     }
   }
 
@@ -925,179 +1085,35 @@ function CashierMonitor() {
     )
   }
 
-  const renderAcceptTab = () => (
-    <div className='cashier-layout'>
-      <aside className='cashier-panel cashier-category-panel'>
-        <div className='cashier-panel-heading'>
-          <h3>Категории</h3>
-        </div>
+  const renderCartDrawer = () => {
+    if (!cartOpen) return null
 
-        <div className='cashier-category-list'>
-          {categories.map(category => (
-            <button
-              key={category.id || 'all'}
-              type='button'
-              onClick={() => {
-                setActiveCategoryId(category.id)
-                setCategoryToast(category.name)
-              }}
-              className={
-                activeCategoryId === category.id
-                  ? 'cashier-category-btn active'
-                  : 'cashier-category-btn'
-              }
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-      </aside>
+    return (
+      <div className='cashier-cart-drawer cashier-cart-drawer--left'>
+        <div
+          className='cashier-cart-drawer__overlay'
+          onClick={() => setCartOpen(false)}
+        />
 
-      <section className='cashier-panel cashier-menu-panel cashier-menu-panel--wide'>
-        <div className='cashier-panel-toolbar cashier-panel-toolbar--between cashier-panel-toolbar--accept'>
-          <div>
-            <h3>Блюда</h3>
-          </div>
+        <div className='cashier-cart-drawer__panel cashier-cart-drawer__panel--checkout cashier-cart-drawer__panel--left'>
+          <div className='cashier-cart-drawer__head'>
+            <div>
+              <h3>Корзина</h3>
+              <p>
+                {totalItems} шт. • {formatPrice(totalSum)}
+              </p>
+            </div>
 
-          <div className='cashier-accept-top-actions'>
             <button
               type='button'
-              className='cashier-order-side-btn cashier-order-side-btn--cart'
-              onClick={() => setCartOpen(true)}
+              className='cashier-cart-dropdown__close'
+              onClick={() => setCartOpen(false)}
             >
-              <span className='cashier-btn-icon'>
-                <CartIcon />
-              </span>
-              <span>Корзина</span>
-              {totalItems > 0 && (
-                <strong className='cashier-cart-count'>{totalItems}</strong>
-              )}
+              <CloseIcon />
             </button>
           </div>
-        </div>
 
-        {clientPendingOrders.length > 0 && (
-          <div className='cashier-client-inline-box'>
-            <div className='cashier-client-inline-box__head'>
-              <h4>Заказы от клиента</h4>
-              <span>{clientPendingOrders.length}</span>
-            </div>
-
-            <div className='cashier-status-list cashier-status-list--compact'>
-              {clientPendingOrders.map(order => {
-                const age = getOrderAgeMinutes(order.created_at)
-
-                return (
-                  <div
-                    key={order.id}
-                    className='cashier-status-card cashier-status-card--compact'
-                  >
-                    <div className='cashier-status-card__top'>
-                      <strong className='cashier-order-number'>
-                        Заказ № {formatDailyOrderNumber(order)}
-                      </strong>
-                      <span className='cashier-order-badge'>Клиент</span>
-                    </div>
-
-                    <div className='cashier-status-card__meta cashier-status-card__meta--compact'>
-                      <span>
-                        Время:{' '}
-                        {order.created_at
-                          ? new Date(order.created_at).toLocaleTimeString('ru-RU')
-                          : '—'}
-                      </span>
-                      <span>Минут прошло: {age}</span>
-                      <span>Сумма: {formatPrice(Number(order.total || 0))}</span>
-                      <span>Тип: {getOrderPlaceText(order)}</span>
-                      <span>Источник: Клиентский экран</span>
-                      <span>
-                        Оплата:{' '}
-                        {getPaymentMethodLabel(getOrderPaymentMethodValue(order))}
-                      </span>
-                    </div>
-
-                    <div className='cashier-status-card__actions'>
-                      <button
-                        type='button'
-                        className='cashier-cancel-btn'
-                        disabled={busyOrderId === order.id}
-                        onClick={() => handleCancelOrder(order.id)}
-                      >
-                        {busyOrderId === order.id ? '...' : 'Отмена'}
-                      </button>
-
-                      <button
-                        type='button'
-                        className='cashier-issue-btn'
-                        disabled={busyOrderId === order.id}
-                        onClick={() => handleAcceptClientOrder(order.id)}
-                      >
-                        {busyOrderId === order.id ? '...' : 'Принять'}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {categoryToast && (
-          <div className='cashier-category-toast'>
-            <span className='cashier-btn-icon'>
-              <BellIcon />
-            </span>
-            <span>{categoryToast}</span>
-          </div>
-        )}
-
-        {loading ? (
-          <div className='cashier-empty-box'>Загрузка меню...</div>
-        ) : filteredFoods.length === 0 ? (
-          <div className='cashier-empty-box'>Блюда не найдены</div>
-        ) : (
-          <div className='cashier-foods-grid cashier-foods-grid--names-only'>
-            {filteredFoods.map(item => (
-              <button
-                type='button'
-                className='cashier-food-btn cashier-food-btn--name-only'
-                key={item.id}
-                onClick={() => addToCart(item)}
-                title={item.title}
-              >
-                <span className='cashier-food-btn__title cashier-food-btn__title--only'>
-                  {item.title}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {cartOpen && (
-        <div className='cashier-cart-drawer'>
-          <div
-            className='cashier-cart-drawer__overlay'
-            onClick={() => setCartOpen(false)}
-          />
-          <div className='cashier-cart-drawer__panel cashier-cart-drawer__panel--checkout'>
-            <div className='cashier-cart-drawer__head'>
-              <div>
-                <h3>Корзина</h3>
-                <p>
-                  {totalItems} шт. • {formatPrice(totalSum)}
-                </p>
-              </div>
-
-              <button
-                type='button'
-                className='cashier-cart-dropdown__close'
-                onClick={() => setCartOpen(false)}
-              >
-                <CloseIcon />
-              </button>
-            </div>
-
+          <div className='cashier-cart-drawer__scroll'>
             <div className='cashier-order-grid-pairs cashier-order-grid-pairs--drawer'>
               <div className='cashier-order-pair-card'>
                 <span>Позиции</span>
@@ -1273,23 +1289,176 @@ function CashierMonitor() {
                 ))
               )}
             </div>
+          </div>
 
-            <div className='cashier-cart-drawer__footer'>
-              <button
-                type='button'
-                className='cashier-primary-btn cashier-primary-btn--submit'
-                onClick={handleCreateOrder}
-                disabled={!cart.length || submitting}
-              >
-                <span className='cashier-btn-icon'>
-                  <CheckIcon />
-                </span>
-                <span>{submitting ? 'Сохранение...' : 'Оформить заказ'}</span>
-              </button>
-            </div>
+          <div className='cashier-cart-drawer__footer'>
+            <button
+              type='button'
+              className='cashier-primary-btn cashier-primary-btn--submit'
+              onClick={handleCreateOrder}
+              disabled={!cart.length || submitting}
+            >
+              <span className='cashier-btn-icon'>
+                <CheckIcon />
+              </span>
+              <span>{submitting ? 'Сохранение...' : 'Оформить заказ'}</span>
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    )
+  }
+
+  const renderAcceptTab = () => (
+    <div className='cashier-layout'>
+      <aside className='cashier-panel cashier-category-panel'>
+        <div className='cashier-panel-heading'>
+          <h3>Категории</h3>
+        </div>
+
+        <div className='cashier-category-list'>
+          {categories.map(category => (
+            <button
+              key={category.id || 'all'}
+              type='button'
+              onClick={() => {
+                setActiveCategoryId(category.id)
+                setCategoryToast(category.name)
+              }}
+              className={
+                activeCategoryId === category.id
+                  ? 'cashier-category-btn active'
+                  : 'cashier-category-btn'
+              }
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <section className='cashier-panel cashier-menu-panel cashier-menu-panel--wide'>
+        <div className='cashier-panel-toolbar cashier-panel-toolbar--between cashier-panel-toolbar--accept'>
+          <div>
+            <h3>Блюда</h3>
+          </div>
+
+          <div className='cashier-accept-top-actions'>
+            <button
+              type='button'
+              className='cashier-order-side-btn cashier-order-side-btn--cart'
+              onClick={() => setCartOpen(true)}
+            >
+              <span className='cashier-btn-icon'>
+                <CartIcon />
+              </span>
+              <span>Корзина</span>
+              {totalItems > 0 && (
+                <strong className='cashier-cart-count'>{totalItems}</strong>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {clientPendingOrders.length > 0 && (
+          <div className='cashier-client-inline-box'>
+            <div className='cashier-client-inline-box__head'>
+              <h4>Заказы от клиента</h4>
+              <span>{clientPendingOrders.length}</span>
+            </div>
+
+            <div className='cashier-status-list cashier-status-list--compact'>
+              {clientPendingOrders.map(order => {
+                const age = getOrderAgeMinutes(order.created_at)
+
+                return (
+                  <div
+                    key={order.id}
+                    className='cashier-status-card cashier-status-card--compact'
+                  >
+                    <div className='cashier-status-card__top'>
+                      <strong className='cashier-order-number'>
+                        Заказ № {formatDailyOrderNumber(order)}
+                      </strong>
+                      <span className='cashier-order-badge'>Клиент</span>
+                    </div>
+
+                    <div className='cashier-status-card__meta cashier-status-card__meta--compact'>
+                      <span>
+                        Время:{' '}
+                        {order.created_at
+                          ? new Date(order.created_at).toLocaleTimeString('ru-RU')
+                          : '—'}
+                      </span>
+                      <span>Минут прошло: {age}</span>
+                      <span>Сумма: {formatPrice(Number(order.total || 0))}</span>
+                      <span>Тип: {getOrderPlaceText(order)}</span>
+                      <span>Источник: Клиентский экран</span>
+                      <span>
+                        Оплата:{' '}
+                        {getPaymentMethodLabel(getOrderPaymentMethodValue(order))}
+                      </span>
+                    </div>
+
+                    <div className='cashier-status-card__actions'>
+                      <button
+                        type='button'
+                        className='cashier-cancel-btn'
+                        disabled={busyOrderId === order.id}
+                        onClick={() => handleCancelOrder(order.id)}
+                      >
+                        {busyOrderId === order.id ? '...' : 'Отмена'}
+                      </button>
+
+                      <button
+                        type='button'
+                        className='cashier-issue-btn'
+                        disabled={busyOrderId === order.id}
+                        onClick={() => handleAcceptClientOrder(order.id)}
+                      >
+                        {busyOrderId === order.id ? '...' : 'Принять'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {categoryToast && (
+          <div className='cashier-category-toast'>
+            <span className='cashier-btn-icon'>
+              <BellIcon />
+            </span>
+            <span>{categoryToast}</span>
+          </div>
+        )}
+
+        {loading ? (
+          <div className='cashier-empty-box'>Загрузка меню...</div>
+        ) : filteredFoods.length === 0 ? (
+          <div className='cashier-empty-box'>Блюда не найдены</div>
+        ) : (
+          <div className='cashier-foods-grid cashier-foods-grid--names-only'>
+            {filteredFoods.map(item => (
+              <button
+                type='button'
+                className='cashier-food-btn cashier-food-btn--name-only'
+                key={item.id}
+                onClick={() => addToCart(item)}
+                title={item.title}
+              >
+                <span className='cashier-food-btn__title cashier-food-btn__title--only'>
+                  {item.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {renderCartDrawer()}
     </div>
   )
 
@@ -1456,6 +1625,14 @@ function CashierMonitor() {
                 }
               >
                 <span>Email отчет</span>
+              </button>
+
+              <button
+                type='button'
+                className='cashier-primary-btn cashier-primary-btn--submit'
+                onClick={handleCloseDay}
+              >
+                <span>Закрыть день</span>
               </button>
             </div>
           )}

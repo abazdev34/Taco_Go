@@ -1,76 +1,131 @@
-import { supabase } from "../lib/supabase";
-import { IMenuItemPayload } from "../types/menu";
+import { supabase } from '../lib/supabase'
+import { IMenuItemPayload } from '../types/menu'
 
-export async function fetchMenuItems() {
-  const { data: items, error: itemsError } = await supabase
-    .from("menu_items")
-    .select("*")
-    .order("sort_order", { ascending: true });
+const MENU_ITEM_SELECT = `
+  id,
+  title,
+  price,
+  category,
+  description,
+  image,
+  is_active,
+  sort_order
+`
 
-  console.log("MENU ITEMS:", { items, itemsError });
+const CATEGORY_SELECT = `
+  id,
+  name,
+  image,
+  sort_order,
+  type
+`
 
-  if (itemsError) {
-    throw new Error(itemsError.message);
+let menuCache: any[] | null = null
+let lastFetchTime = 0
+const CACHE_TIME = 1000 * 60 * 2
+
+function normalizeMenuItem(item: any) {
+  return {
+    ...item,
+    image_url: item.image || null,
+    photo: item.image || null,
+  }
+}
+
+function cleanPayload(payload: IMenuItemPayload) {
+  const safePayload: Record<string, any> = {
+    ...payload,
+    image: (payload as any).image || (payload as any).image_url || '',
   }
 
-  const { data: categories, error: categoriesError } = await supabase
-    .from("categories")
-    .select("id, name, image, sort_order, created_at, type");
+  delete safePayload.image_url
+  delete safePayload.photo
+  delete safePayload.categories
+  delete safePayload.created_at
 
-  console.log("CATEGORIES:", { categories, categoriesError });
+  return safePayload
+}
+
+export async function fetchMenuItems(force = false) {
+  const now = Date.now()
+
+  if (!force && menuCache && now - lastFetchTime < CACHE_TIME) {
+    return menuCache
+  }
+
+  const [
+    { data: items, error: itemsError },
+    { data: categories, error: categoriesError },
+  ] = await Promise.all([
+    supabase
+      .from('menu_items')
+      .select(MENU_ITEM_SELECT)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
+
+    supabase
+      .from('categories')
+      .select(CATEGORY_SELECT)
+      .order('sort_order', { ascending: true }),
+  ])
+
+  if (itemsError) {
+    if (menuCache) return menuCache
+    throw new Error(itemsError.message)
+  }
 
   if (categoriesError) {
-    throw new Error(categoriesError.message);
+    if (menuCache) return menuCache
+    throw new Error(categoriesError.message)
   }
 
   const categoriesMap = new Map(
-    (categories ?? []).map((category) => [category.id, category])
-  );
+    (categories || []).map(category => [category.id, category])
+  )
 
-  return (items ?? []).map((item) => ({
-    ...item,
-    categories: categoriesMap.get(item.category) ?? null,
-  }));
+  const result = (items || []).map(item => ({
+    ...normalizeMenuItem(item),
+    categories: categoriesMap.get(item.category) || null,
+  }))
+
+  menuCache = result
+  lastFetchTime = now
+
+  return result
 }
 
 export async function createMenuItem(payload: IMenuItemPayload) {
   const { data, error } = await supabase
-    .from("menu_items")
-    .insert([payload])
-    .select()
-    .single();
+    .from('menu_items')
+    .insert([cleanPayload(payload)])
+    .select(MENU_ITEM_SELECT)
+    .single()
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message)
 
-  return data;
+  menuCache = null
+  return normalizeMenuItem(data)
 }
 
 export async function updateMenuItem(id: string, payload: IMenuItemPayload) {
   const { data, error } = await supabase
-    .from("menu_items")
-    .update(payload)
-    .eq("id", id)
-    .select()
-    .single();
+    .from('menu_items')
+    .update(cleanPayload(payload))
+    .eq('id', id)
+    .select(MENU_ITEM_SELECT)
+    .single()
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message)
 
-  return data;
+  menuCache = null
+  return normalizeMenuItem(data)
 }
 
 export async function deleteMenuItem(id: string) {
-  const { error } = await supabase
-    .from("menu_items")
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.from('menu_items').delete().eq('id', id)
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message)
 
-  return true;
+  menuCache = null
+  return true
 }

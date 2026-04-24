@@ -31,8 +31,6 @@ const ORDER_SELECT_FIELDS = `
   paid_at
 `;
 
-/* ================= FETCH ================= */
-
 export async function fetchOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
     .from("orders")
@@ -56,16 +54,29 @@ export async function fetchActiveOrders(): Promise<IOrderRow[]> {
 
 export async function fetchHistoryOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
-    .from("orders")
+    .from("orders_archive")
     .select(ORDER_SELECT_FIELDS)
-    .eq("status", "completed")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(300);
 
   if (error) throw new Error(error.message);
   return (data || []) as IOrderRow[];
 }
 
-/* ================= HELPERS ================= */
+export async function fetchArchivedOrdersByDateRange(
+  startDate: string,
+  endDate: string
+): Promise<IOrderRow[]> {
+  const { data, error } = await supabase
+    .from("orders_archive")
+    .select(ORDER_SELECT_FIELDS)
+    .gte("created_at", startDate)
+    .lte("created_at", endDate)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data || []) as IOrderRow[];
+}
 
 async function getNextDailyOrderNumber(): Promise<number> {
   const now = new Date();
@@ -88,8 +99,6 @@ async function getNextDailyOrderNumber(): Promise<number> {
 
   return Number(data?.[0]?.daily_order_number || 0) + 1;
 }
-
-/* ================= CREATE ================= */
 
 export async function createOrder(
   payload: ICreateOrderPayload
@@ -148,8 +157,6 @@ export async function createOrder(
   if (error) throw new Error(error.message);
   return data as IOrderRow;
 }
-
-/* ================= UPDATE ================= */
 
 export async function updateOrderStatus(
   id: string,
@@ -238,7 +245,26 @@ export async function updateOrderComment(
   return data as IOrderRow;
 }
 
-/* ================= DELETE ================= */
+export async function archiveCompletedOrdersByDay(targetDay: string) {
+  const { data, error } = await supabase.rpc("archive_completed_orders_by_day", {
+    target_day: targetDay,
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function deleteArchivedOrdersByIds(ids: string[]): Promise<void> {
+  const safeIds = ids?.filter(Boolean) ?? [];
+  if (!safeIds.length) return;
+
+  const { error } = await supabase
+    .from("orders_archive")
+    .delete()
+    .in("id", safeIds);
+
+  if (error) throw new Error(error.message);
+}
 
 export async function deleteOrder(id: string): Promise<void> {
   const { error } = await supabase.from("orders").delete().eq("id", id);

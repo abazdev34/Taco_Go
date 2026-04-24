@@ -1,177 +1,69 @@
-import { formatPrice } from './currency'
-
-type CashReportMovement = {
-	createdAt: string
-	type: string
-	amount: number
-	requestedBy?: string
-	sourceName?: string
-	description?: string
-	approvedBy?: string
+export const formatRub = (value: number) => {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    maximumFractionDigits: 0,
+  }).format(value)
 }
 
-type CashReportPayload = {
-	dateLabel: string
-	totalOrders: number
-	totalCashOrders: number
-	totalOnlineOrders: number
-	totalOrdersAmount: number
-	totalIn: number
-	totalOut: number
-	cashboxBalance: number
-	movements: CashReportMovement[]
+/* ================= DAY REPORT ================= */
+
+export const generateDayReportPdf = (report: {
+  dateLabel: string
+  totalOrders: number
+  totalRevenue: number
+}) => {
+  const win = window.open('', '_blank', 'width=900,height=700')
+
+  if (!win) return alert('Popup blocked')
+
+  win.document.write(`
+    <html>
+      <head>
+        <title>Отчет</title>
+      </head>
+      <body style="font-family: Arial; padding:20px;">
+        <h1>Отчет за ${report.dateLabel}</h1>
+
+        <p>Заказов: <b>${report.totalOrders}</b></p>
+        <p>Выручка: <b>${formatRub(report.totalRevenue)}</b></p>
+
+        <button onclick="window.print()">Печать</button>
+      </body>
+    </html>
+  `)
+
+  win.document.close()
 }
 
-export const generateCashReportPdf = (payload: CashReportPayload) => {
-	const win = window.open('', '_blank', 'width=1100,height=800')
+/* ================= CASH REPORT ================= */
 
-	if (!win) {
-		alert('Разрешите popup для PDF')
-		return
-	}
+export const generateCashReportPdf = (report: any) => {
+  const win = window.open('', '_blank', 'width=900,height=700')
 
-	const rows = payload.movements
-		.map(
-			(item) => `
-			<tr>
-				<td>${item.createdAt}</td>
-				<td>${item.type}</td>
-				<td>${formatPrice(item.amount)}</td>
-				<td>${item.requestedBy || '—'}</td>
-				<td>${item.sourceName || '—'}</td>
-				<td>${item.description || '—'}</td>
-				<td>${item.approvedBy || '—'}</td>
-			</tr>
-		`
-		)
-		.join('')
+  if (!win) return alert('Popup blocked')
 
-	win.document.write(`
-		<!DOCTYPE html>
-		<html lang="ru">
-		<head>
-			<meta charset="UTF-8" />
-			<title>Кассовый отчет</title>
-			<style>
-				body {
-					font-family: Arial, sans-serif;
-					padding: 24px;
-					color: #111827;
-				}
-				h1 {
-					margin-bottom: 8px;
-					font-size: 28px;
-				}
-				.meta {
-					display: grid;
-					grid-template-columns: repeat(4, minmax(0, 1fr));
-					gap: 12px;
-					margin: 18px 0 24px;
-				}
-				.box {
-					padding: 14px;
-					border-radius: 12px;
-					background: #f3f4f6;
-				}
-				.box span {
-					display: block;
-					font-size: 13px;
-					color: #6b7280;
-				}
-				.box strong {
-					display: block;
-					margin-top: 8px;
-					font-size: 22px;
-				}
-				table {
-					width: 100%;
-					border-collapse: collapse;
-					margin-top: 20px;
-				}
-				th, td {
-					border: 1px solid #d1d5db;
-					padding: 10px 12px;
-					text-align: left;
-					font-size: 13px;
-					vertical-align: top;
-				}
-				th {
-					background: #111827;
-					color: white;
-				}
-				.print-btn {
-					margin-top: 24px;
-					padding: 12px 16px;
-					border: none;
-					border-radius: 10px;
-					background: #111827;
-					color: white;
-					font-weight: bold;
-					cursor: pointer;
-				}
-				@media print {
-					.print-btn {
-						display: none;
-					}
-				}
-			</style>
-		</head>
-		<body>
-			<h1>Кассовый отчет</h1>
-			<p><b>Период:</b> ${payload.dateLabel}</p>
+  win.document.write(`
+    <html>
+      <head>
+        <title>Кассовый отчет</title>
+      </head>
+      <body style="font-family: Arial; padding:20px;">
+        <h1>Кассовый отчет</h1>
 
-			<div class="meta">
-				<div class="box">
-					<span>Заказов</span>
-					<strong>${payload.totalOrders}</strong>
-				</div>
-				<div class="box">
-					<span>Наличка заказов</span>
-					<strong>${formatPrice(payload.totalCashOrders)}</strong>
-				</div>
-				<div class="box">
-					<span>Онлайн заказов</span>
-					<strong>${formatPrice(payload.totalOnlineOrders)}</strong>
-				</div>
-				<div class="box">
-					<span>Сумма заказов</span>
-					<strong>${formatPrice(payload.totalOrdersAmount)}</strong>
-				</div>
-				<div class="box">
-					<span>Внесено</span>
-					<strong>${formatPrice(payload.totalIn)}</strong>
-				</div>
-				<div class="box">
-					<span>Изъято</span>
-					<strong>${formatPrice(payload.totalOut)}</strong>
-				</div>
-				<div class="box">
-					<span>Касса состояние</span>
-					<strong>${formatPrice(payload.cashboxBalance)}</strong>
-				</div>
-			</div>
+        <p>Дата: ${report.dateLabel}</p>
+        <p>Заказов: ${report.totalOrders}</p>
+        <p>Наличные: ${formatRub(report.totalCashOrders)}</p>
+        <p>Онлайн: ${formatRub(report.totalOnlineOrders)}</p>
+        <p>Внесено: ${formatRub(report.totalIn)}</p>
+        <p>Изъято: ${formatRub(report.totalOut)}</p>
 
-			<table>
-				<thead>
-					<tr>
-						<th>Дата</th>
-						<th>Тип</th>
-						<th>Сумма</th>
-						<th>Кто отправил</th>
-						<th>Источник</th>
-						<th>Описание</th>
-						<th>Подтвердил</th>
-					</tr>
-				</thead>
-				<tbody>
-					${rows || '<tr><td colspan="7">Нет данных</td></tr>'}
-				</tbody>
-			</table>
+        <h2>Итого в кассе: ${formatRub(report.cashboxBalance)}</h2>
 
-			<button class="print-btn" onclick="window.print()">Печать / Сохранить в PDF</button>
-		</body>
-		</html>
-	`)
+        <button onclick="window.print()">Печать</button>
+      </body>
+    </html>
+  `)
 
-	win.document.close()
+  win.document.close()
 }

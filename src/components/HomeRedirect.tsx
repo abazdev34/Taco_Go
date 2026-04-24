@@ -9,8 +9,11 @@ function HomeRedirect() {
   const { user, profile, loading } = useAuth();
 
   if (loading) return <div>Загрузка...</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  if (!profile) return <div>Загрузка профиля...</div>;
+
+  // ✅ ЭҢ МААНИЛҮҮ: логин жок болсо → client
+  if (!user) return <Navigate to="/client" replace />;
+
+  if (!profile) return <Navigate to="/client" replace />;
 
   const role = normalize(profile.role);
   const status = normalize(profile.status);

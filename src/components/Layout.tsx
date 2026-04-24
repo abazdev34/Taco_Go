@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import logoImg from '../assets/img/logo-burritos.jpg'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
@@ -8,6 +10,18 @@ const MenuIcon = () => (
   <svg viewBox='0 0 24 24' aria-hidden='true'>
     <path
       d='M4 7h16M4 12h16M4 17h16'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+    />
+  </svg>
+)
+
+const CloseIcon = () => (
+  <svg viewBox='0 0 24 24' aria-hidden='true'>
+    <path
+      d='M6 6l12 12M18 6 6 18'
       fill='none'
       stroke='currentColor'
       strokeWidth='2'
@@ -89,6 +103,7 @@ function Layout() {
   const { totalItems, setCartOpen } = useCart()
   const navigate = useNavigate()
   const location = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const pathname = location.pathname
 
@@ -105,6 +120,7 @@ function Layout() {
 
   const logout = async () => {
     await signOut()
+    setMobileMenuOpen(false)
     navigate('/login')
   }
 
@@ -120,16 +136,20 @@ function Layout() {
     <div className='app-shell'>
       <header className='navbar'>
         <div className='navbar__left'>
-          <Link to='/client' className='brand'>
-            <img src={logoImg} alt='Буррито' className='brand__logo' />
+          <Link
+            to='/client'
+            className='brand'
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <img src={logoImg} alt='Бурритос' className='brand__logo' />
             <div className='brand__text'>
               <span className='brand__badge'>Mexican Grill</span>
-              <strong>БУРРИТО</strong>
+              <strong>БУРРИТОС</strong>
             </div>
           </Link>
         </div>
 
-        <nav className='nav-links'>
+        <nav className='nav-links nav-links--desktop'>
           <Link
             to='/client'
             className={isActive('/client') ? 'nav-link active' : 'nav-link'}
@@ -180,7 +200,7 @@ function Layout() {
           )}
         </nav>
 
-        <div className='auth-block'>
+        <div className='auth-block auth-block--desktop'>
           {user ? (
             <>
               <span className='user-email'>{user.email}</span>
@@ -197,7 +217,149 @@ function Layout() {
             </Link>
           )}
         </div>
+
+        <div className='mobile-actions'>
+          {isClientPage && (
+            <button
+              type='button'
+              className='mobile-action mobile-action--cart'
+              onClick={() => setCartOpen(true)}
+              aria-label='Открыть корзину'
+            >
+              <span className='mobile-action__icon'>
+                <CartIcon />
+              </span>
+              {totalItems > 0 && (
+                <span className='mobile-cart-count'>{totalItems}</span>
+              )}
+            </button>
+          )}
+
+          <button
+            type='button'
+            className='mobile-action mobile-action--burger'
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label='Открыть меню'
+          >
+            <span className='mobile-action__icon'>
+              <MenuIcon />
+            </span>
+          </button>
+        </div>
       </header>
+
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className='mobile-drawer-wrap'>
+            <motion.div
+              className='mobile-drawer__overlay'
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+
+            <motion.div
+              className='mobile-drawer__panel'
+              initial={{ x: '100%', opacity: 0.98 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0.98 }}
+              transition={{
+                type: 'spring',
+                stiffness: 340,
+                damping: 32,
+                mass: 0.9,
+              }}
+            >
+              <div className='mobile-drawer__head'>
+                <div className='mobile-drawer__brand'>
+                  <img src={logoImg} alt='Бурритос' />
+                  <div>
+                    <strong>БУРРИТОС</strong>
+                    <span>Mexican Grill</span>
+                  </div>
+                </div>
+
+                <button
+                  type='button'
+                  className='mobile-drawer__close'
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <div className='mobile-drawer__links'>
+                <Link
+                  to='/client'
+                  className='mobile-drawer__link'
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className='nav-link__icon'>
+                    <MenuIcon />
+                  </span>
+                  <span>Меню</span>
+                </Link>
+
+                <button
+                  type='button'
+                  className='mobile-drawer__link'
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className='nav-link__icon'>
+                    <GiftIcon />
+                  </span>
+                  <span>Акция</span>
+                </button>
+
+                <button
+                  type='button'
+                  className='mobile-drawer__link'
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className='nav-link__icon'>
+                    <InfoIcon />
+                  </span>
+                  <span>О нас</span>
+                </button>
+
+                {profile?.role === 'admin' && (
+                  <Link
+                    to='/admin'
+                    className='mobile-drawer__link'
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span>Админ</span>
+                  </Link>
+                )}
+              </div>
+
+              <div className='mobile-drawer__bottom'>
+                {user ? (
+                  <>
+                    <span className='mobile-user-email'>{user.email}</span>
+                    <button className='auth-btn auth-btn--logout' onClick={logout}>
+                      Выйти
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    to='/login'
+                    className='auth-btn auth-btn--login'
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span className='auth-btn__icon'>
+                      <LoginIcon />
+                    </span>
+                    <span>Войти</span>
+                  </Link>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <main className='page'>
         <Outlet />

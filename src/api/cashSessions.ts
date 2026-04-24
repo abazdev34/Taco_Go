@@ -35,9 +35,9 @@ export async function fetchOpenCashSession(): Promise<ICashSessionRow | null> {
 	return (data as ICashSessionRow | null) ?? null
 }
 
-export async function openCashSession(payload: {
-	opened_by: string
-	opening_balance: number
+export async function openCashSession(p0: string, amount: number, payload: {
+  opened_by: string
+  opening_balance: number
 }): Promise<ICashSessionRow> {
 	const { data, error } = await supabase
 		.from('cash_sessions')

@@ -1,7 +1,5 @@
 export type TUnitType = 'шт' | 'кг' | 'л'
 
-/* ================= INGREDIENT ================= */
-
 export interface ITechCardIngredientRow {
   id: string
   tech_card_id: string
@@ -11,14 +9,14 @@ export interface ITechCardIngredientRow {
 
   quantity: number
   unit_price: number
+  percent: number
 
-  total: number      // ❗ NULL кылба — эсептелген маанини сакта
-  percent: number    // ❗ NULL кылба
+  cost: number
+  selling_price: number
+  profit: number
 
   created_at: string
 }
-
-/* ================= TECH CARD ================= */
 
 export interface ITechCardRow {
   id: string
@@ -26,26 +24,28 @@ export interface ITechCardRow {
 
   total_cost: number
   total_percent: number
+  total_selling_price: number
+  total_profit: number
 
   created_at: string
-
   ingredients: ITechCardIngredientRow[]
 }
 
-/* ================= CREATE ================= */
-
 export interface ICreateTechCardPayload {
   menu_item_id: string
-
   total_cost: number
   total_percent: number
+  total_selling_price: number
+  total_profit: number
 
   ingredients: {
     name: string
     unit: TUnitType
     quantity: number
     unit_price: number
-    total: number
     percent: number
+    cost: number
+    selling_price: number
+    profit: number
   }[]
 }
