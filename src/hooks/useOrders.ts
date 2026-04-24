@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { IOrderRow } from '../types/order'
 
 const ACTIVE_STATUSES = ['pending', 'new', 'preparing', 'ready']
-const MAX_ACTIVE_ORDERS = 200
+const MAX_ACTIVE_ORDERS = 120
 
 function getOrderTime(order: IOrderRow) {
   const raw = order?.updated_at || order?.created_at || ''
@@ -30,31 +30,26 @@ function mergeOrder(oldOrder: IOrderRow, newOrder: IOrderRow): IOrderRow {
   }
 }
 
-function sortOrders(list: IOrderRow[]) {
-  return [...list].sort((a, b) => {
-    const bTime = getOrderTime(b)
-    const aTime = getOrderTime(a)
-
-    if (bTime !== aTime) return bTime - aTime
-
-    return (
-      Number(b.daily_order_number || b.order_number || 0) -
-      Number(a.daily_order_number || a.order_number || 0)
-    )
-  })
-}
-
 function normalizeOrders(list: IOrderRow[]) {
   const map = new Map<string, IOrderRow>()
 
   for (const order of list) {
     if (!isActiveOrder(order)) continue
-
     const existing = map.get(order.id)
     map.set(order.id, existing ? mergeOrder(existing, order) : order)
   }
 
-  return sortOrders(Array.from(map.values())).slice(0, MAX_ACTIVE_ORDERS)
+  return Array.from(map.values())
+    .sort((a, b) => {
+      const diff = getOrderTime(b) - getOrderTime(a)
+      if (diff !== 0) return diff
+
+      return (
+        Number(b.daily_order_number || b.order_number || 0) -
+        Number(a.daily_order_number || a.order_number || 0)
+      )
+    })
+    .slice(0, MAX_ACTIVE_ORDERS)
 }
 
 function upsertOrder(prev: IOrderRow[], incoming: IOrderRow) {
@@ -74,17 +69,12 @@ function upsertOrder(prev: IOrderRow[], incoming: IOrderRow) {
   return normalizeOrders(next)
 }
 
-function removeOrder(prev: IOrderRow[], id?: string) {
-  if (!id) return prev
-  return prev.filter(order => order.id !== id)
-}
-
 export function useOrders() {
   const [orders, setOrders] = useState<IOrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const mountedRef = useRef(true)
+  const mountedRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -97,13 +87,9 @@ export function useOrders() {
         const data = await fetchActiveOrders()
 
         if (!mountedRef.current) return
-
         setOrders(normalizeOrders(Array.isArray(data) ? data : []))
       } catch (e: any) {
-        console.error('LOAD ACTIVE ORDERS ERROR:', e)
-
         if (!mountedRef.current) return
-
         setError(e?.message || 'Не удалось загрузить заказы')
         setOrders([])
       } finally {
@@ -121,6 +107,7 @@ export function useOrders() {
           event: '*',
           schema: 'public',
           table: 'orders',
+          filter: 'status=in.(pending,new,preparing,ready,completed,cancelled)',
         },
         payload => {
           if (!mountedRef.current) return
@@ -129,16 +116,12 @@ export function useOrders() {
           const oldRow = payload.old as IOrderRow | undefined
 
           setOrders(prev => {
-            if (payload.eventType === 'INSERT' && newRow) {
+            if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && newRow) {
               return upsertOrder(prev, newRow)
             }
 
-            if (payload.eventType === 'UPDATE' && newRow) {
-              return upsertOrder(prev, newRow)
-            }
-
-            if (payload.eventType === 'DELETE') {
-              return removeOrder(prev, oldRow?.id)
+            if (payload.eventType === 'DELETE' && oldRow?.id) {
+              return prev.filter(order => order.id !== oldRow.id)
             }
 
             return prev

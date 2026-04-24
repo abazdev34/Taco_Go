@@ -29,6 +29,9 @@ function ClientMonitor() {
   const [activeCategory, setActiveCategory] = useState('all')
   const [orderMode, setOrderMode] = useState<TOrderPlace>('hall')
   const [comment, setComment] = useState('')
+  const [successOpen, setSuccessOpen] = useState(false)
+  const [lastOrderNumber, setLastOrderNumber] = useState('001')
+
   const paymentMethod: TPaymentMethod = 'online'
 
   useEffect(() => {
@@ -132,12 +135,12 @@ function ClientMonitor() {
         assembly_progress: [],
       })
 
+      setLastOrderNumber(String(savedOrder.daily_order_number || 0).padStart(3, '0'))
       clearCart()
       setComment('')
       setOrderMode('hall')
       setCartOpen(false)
-
-      alert(`Заказ принят ✅ Номер: ${String(savedOrder.daily_order_number || 0).padStart(3, '0')}`)
+      setSuccessOpen(true)
     } catch (e: any) {
       console.error('CLIENT ORDER ERROR:', e)
       alert(e?.message || 'Не удалось оформить заказ')
@@ -146,11 +149,35 @@ function ClientMonitor() {
     }
   }
 
+  if (successOpen) {
+    return (
+      <div className='client-success-page'>
+        <div className='client-success-card'>
+          <div className='client-success-check'>✓</div>
+          <h1>Заказ принят!</h1>
+          <p>Ваш номер заказа</p>
+          <strong className='client-success-number'>{lastOrderNumber}</strong>
+          <span>Ожидайте, заказ уже передан в работу</span>
+
+          <button type='button' onClick={() => setSuccessOpen(false)}>
+            Новый заказ
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) return <div className='client-empty'>Загрузка меню...</div>
   if (error) return <div className='client-empty'>{error}</div>
 
   return (
     <div className='client-page'>
+      <div className='client-hero'>
+        <span>Mexican Grill</span>
+        <h1>БУРРИТОС</h1>
+        <p>Выберите блюда и оформите заказ</p>
+      </div>
+
       <div className='client-categories-horizontal'>
         {categories.map(cat => (
           <button
@@ -196,7 +223,7 @@ function ClientMonitor() {
           className='client-cart-badge'
           onClick={() => setCartOpen(true)}
         >
-          🛒 {totalItems}
+          🛒 {totalItems} • {formatPrice(totalSum)}
         </button>
       )}
 
