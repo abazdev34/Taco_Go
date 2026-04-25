@@ -16,31 +16,61 @@ export interface ICashMovementRow {
   approved_at?: string | null
 }
 
-export async function fetchCashMovements(): Promise<ICashMovementRow[]> {
+const CASH_MOVEMENT_SELECT = `
+  id,
+  movement_type,
+  amount,
+  description,
+  requested_by,
+  source_name,
+  approved_by,
+  status,
+  created_at,
+  approved_at
+`
+
+const MAX_CASH_MOVEMENTS = 200
+
+function normalizeCashMovement(row: any): ICashMovementRow {
+  return {
+    id: row.id,
+    movement_type: row.movement_type,
+    amount: Number(row.amount || 0),
+    description: row.description || null,
+    requested_by: row.requested_by || null,
+    source_name: row.source_name || null,
+    approved_by: row.approved_by || null,
+    status: row.status,
+    created_at: row.created_at,
+    approved_at: row.approved_at || null,
+  }
+}
+
+export async function fetchCashMovements(
+  limit = MAX_CASH_MOVEMENTS
+): Promise<ICashMovementRow[]> {
   const { data, error } = await supabase
     .from('cash_movements')
-    .select('*')
+    .select(CASH_MOVEMENT_SELECT)
     .order('created_at', { ascending: false })
+    .limit(limit)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
-  return (data || []) as ICashMovementRow[]
+  return (data || []).map(normalizeCashMovement)
 }
 
 export async function fetchPendingCashMovements(): Promise<ICashMovementRow[]> {
   const { data, error } = await supabase
     .from('cash_movements')
-    .select('*')
+    .select(CASH_MOVEMENT_SELECT)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
+    .limit(MAX_CASH_MOVEMENTS)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
-  return (data || []) as ICashMovementRow[]
+  return (data || []).map(normalizeCashMovement)
 }
 
 export async function createCashMovement(payload: {
@@ -77,14 +107,12 @@ export async function createCashMovement(payload: {
   const { data, error } = await supabase
     .from('cash_movements')
     .insert([insertPayload])
-    .select()
+    .select(CASH_MOVEMENT_SELECT)
     .single()
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
-  return data as ICashMovementRow
+  return normalizeCashMovement(data)
 }
 
 export async function approveCashMovement(
@@ -99,14 +127,12 @@ export async function approveCashMovement(
       approved_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .select()
+    .select(CASH_MOVEMENT_SELECT)
     .single()
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
-  return data as ICashMovementRow
+  return normalizeCashMovement(data)
 }
 
 export async function rejectCashMovement(
@@ -121,47 +147,49 @@ export async function rejectCashMovement(
       approved_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .select()
+    .select(CASH_MOVEMENT_SELECT)
     .single()
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
-  return data as ICashMovementRow
+  return normalizeCashMovement(data)
 }
 
 export async function deleteCashMovement(id: string): Promise<void> {
-  const { error } = await supabase.from('cash_movements').delete().eq('id', id)
+  if (!id) return
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  const { error } = await supabase
+    .from('cash_movements')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
 }
 
 export async function deleteCashMovements(ids: string[]): Promise<void> {
-  if (!ids.length) return
+  const safeIds = ids.filter(Boolean)
+  if (!safeIds.length) return
 
-  const { error } = await supabase.from('cash_movements').delete().in('id', ids)
+  const { error } = await supabase
+    .from('cash_movements')
+    .delete()
+    .in('id', safeIds)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 }
 
 export async function clearCashMovementsByStatus(
   statuses: TCashMovementStatus[]
 ): Promise<void> {
-  if (!statuses.length) return
+  const safeStatuses = statuses.filter(Boolean)
+  if (!safeStatuses.length) return
 
   const { error } = await supabase
     .from('cash_movements')
     .delete()
-    .in('status', statuses)
+    .in('status', safeStatuses)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 }
 
 export async function clearAllCashMovements(): Promise<void> {
@@ -170,7 +198,5 @@ export async function clearAllCashMovements(): Promise<void> {
     .delete()
     .not('id', 'is', null)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 }
