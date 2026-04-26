@@ -183,6 +183,8 @@ function MenuItemsPage() {
     setCurrentImage(item.image || "");
     setImageFile(null);
     setErrorMessage("");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleDelete = async (id: string) => {
@@ -234,135 +236,169 @@ function MenuItemsPage() {
     emptyText: string
   ) => {
     return (
-      <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>{sectionTitle}</h2>
+      <section style={styles.section}>
+        <div style={styles.sectionHead}>
+          <div>
+            <h2 style={styles.sectionTitle}>{sectionTitle}</h2>
+            <p style={styles.sectionSubtitle}>
+              {list.length} товаров в разделе
+            </p>
+          </div>
+        </div>
 
-        <div style={styles.list}>
-          {list.length === 0 ? (
-            <div style={styles.emptyBox}>{emptyText}</div>
-          ) : (
-            list.map((item) => (
-              <div key={item.id} style={styles.item}>
-                <div style={styles.itemLeft}>
-                  <div style={styles.badges}>
-                    <span style={styles.badge}>
-                      {getSectionLabel(item.categories?.type)}
-                    </span>
+        {list.length === 0 ? (
+          <div style={styles.emptyBox}>{emptyText}</div>
+        ) : (
+          <div style={styles.cardGrid}>
+            {list.map((item) => (
+              <article key={item.id} style={styles.foodCard}>
+                <div style={styles.foodImageWrap}>
+                  {item.image ? (
+                    <img src={item.image} alt={item.title} style={styles.foodImage} />
+                  ) : (
+                    <div style={styles.noImage}>Нет фото</div>
+                  )}
 
+                  <span style={styles.sectionBadge}>
+                    {getSectionLabel(item.categories?.type)}
+                  </span>
+                </div>
+
+                <div style={styles.foodBody}>
+                  <div style={styles.foodBadges}>
                     <span style={styles.categoryBadge}>
                       {item.categories?.name ?? "Без категории"}
                     </span>
 
-                    <span style={styles.sortBadge}>
-                      Сортировка: {item.sort_order ?? 0}
-                    </span>
+                    <span style={styles.sortBadge}>№ {item.sort_order ?? 0}</span>
                   </div>
 
-                  <div style={styles.itemTitle}>{item.title}</div>
+                  <h3 style={styles.foodTitle}>{item.title}</h3>
 
-                  {item.description && (
-                    <div style={styles.itemDescription}>{item.description}</div>
-                  )}
+                  <p style={styles.foodDescription}>
+                    {item.description || "Описание не добавлено"}
+                  </p>
 
-                  <div style={styles.metaRow}>
-                    <span>Цена: {item.price} ₽</span>
-                    <span>Вес: {item.weight_g} г</span>
+                  <div style={styles.foodMeta}>
+                    <div>
+                      <span>Цена</span>
+                      <strong>{item.price} ₽</strong>
+                    </div>
+
+                    <div>
+                      <span>Вес</span>
+                      <strong>{item.weight_g} г</strong>
+                    </div>
                   </div>
 
-                  {item.image && (
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      style={styles.imagePreview}
-                    />
-                  )}
-                </div>
+                  <div style={styles.actions}>
+                    <button
+                      style={styles.editButton}
+                      onClick={() => handleEdit(item)}
+                      disabled={saving || deletingId === item.id}
+                    >
+                      Изменить
+                    </button>
 
-                <div style={styles.actions}>
-                  <button
-                    style={styles.editButton}
-                    onClick={() => handleEdit(item)}
-                    disabled={saving || deletingId === item.id}
-                  >
-                    Изменить
-                  </button>
-
-                  <button
-                    style={styles.deleteButton}
-                    onClick={() => handleDelete(item.id)}
-                    disabled={saving || deletingId === item.id}
-                  >
-                    {deletingId === item.id ? "Удаление..." : "Удалить"}
-                  </button>
+                    <button
+                      style={styles.deleteButton}
+                      onClick={() => handleDelete(item.id)}
+                      disabled={saving || deletingId === item.id}
+                    >
+                      {deletingId === item.id ? "Удаление..." : "Удалить"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     );
   };
 
   return (
     <div style={styles.page}>
-      <h1 style={styles.title}>Меню</h1>
+      <div style={styles.header}>
+        <div>
+          <span style={styles.headerBadge}>Админ панель</span>
+          <h1 style={styles.title}>Меню</h1>
+          <p style={styles.subtitle}>
+            Добавляйте блюда, напитки, сборочные позиции и управляйте сортировкой.
+          </p>
+        </div>
+      </div>
 
       <div style={styles.formCard}>
-        <div style={styles.field}>
-          <label style={styles.label}>Категория</label>
-          <select
-            style={styles.input}
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            disabled={saving}
-          >
-            {categories.length === 0 ? (
-              <option value="">Сначала добавьте категорию</option>
-            ) : (
-              categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name} ({getSectionLabel(category.type)})
-                </option>
-              ))
-            )}
-          </select>
+        <div style={styles.formHead}>
+          <div>
+            <h2 style={styles.formTitle}>
+              {editingId ? "Редактирование товара" : "Новый товар"}
+            </h2>
+            <p style={styles.formSubtitle}>
+              Заполните данные товара и сохраните изменения.
+            </p>
+          </div>
         </div>
 
-        <div style={styles.field}>
-          <label style={styles.label}>Раздел</label>
-          <input
-            style={styles.input}
-            value={selectedSectionLabel}
-            disabled
-            readOnly
-          />
-        </div>
+        <div style={styles.formGrid}>
+          <div style={styles.field}>
+            <label style={styles.label}>Категория</label>
+            <select
+              style={styles.input}
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              disabled={saving}
+            >
+              {categories.length === 0 ? (
+                <option value="">Сначала добавьте категорию</option>
+              ) : (
+                categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name} ({getSectionLabel(category.type)})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
 
-        <div style={styles.field}>
-          <label style={styles.label}>Название товара</label>
-          <input
-            style={styles.input}
-            placeholder="Введите название товара"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={saving}
-          />
-        </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Раздел</label>
+            <input style={styles.input} value={selectedSectionLabel} disabled readOnly />
+          </div>
 
-        <div style={styles.field}>
-          <label style={styles.label}>Файл изображения</label>
-          <input
-            style={styles.input}
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-            disabled={saving}
-          />
+          <div style={styles.field}>
+            <label style={styles.label}>Название товара</label>
+            <input
+              style={styles.input}
+              placeholder="Например: Буррито с курицей"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={saving}
+            />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Файл изображения</label>
+            <input
+              style={styles.input}
+              type="file"
+              accept="image/*"
+              onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+              disabled={saving}
+            />
+          </div>
         </div>
 
         {currentImage && (
           <div style={styles.previewBox}>
             <img src={currentImage} alt="preview" style={styles.largePreview} />
+            <div>
+              <strong style={styles.previewTitle}>Текущее изображение</strong>
+              <p style={styles.previewText}>
+                При выборе нового файла изображение будет заменено.
+              </p>
+            </div>
           </div>
         )}
 
@@ -377,7 +413,7 @@ function MenuItemsPage() {
           />
         </div>
 
-        <div style={styles.doubleRow}>
+        <div style={styles.tripleRow}>
           <div style={styles.field}>
             <label style={styles.label}>Цена (₽)</label>
             <input
@@ -399,17 +435,17 @@ function MenuItemsPage() {
               disabled={saving}
             />
           </div>
-        </div>
 
-        <div style={styles.field}>
-          <label style={styles.label}>Порядок сортировки</label>
-          <input
-            style={styles.input}
-            type="number"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            disabled={saving}
-          />
+          <div style={styles.field}>
+            <label style={styles.label}>Порядок сортировки</label>
+            <input
+              style={styles.input}
+              type="number"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              disabled={saving}
+            />
+          </div>
         </div>
 
         {errorMessage && <div style={styles.errorBox}>{errorMessage}</div>}
@@ -420,15 +456,11 @@ function MenuItemsPage() {
               ? "Сохранение..."
               : editingId
               ? "Сохранить изменения"
-              : "Сохранить"}
+              : "Сохранить товар"}
           </button>
 
           {editingId && (
-            <button
-              style={styles.cancelButton}
-              onClick={resetForm}
-              disabled={saving}
-            >
+            <button style={styles.cancelButton} onClick={resetForm} disabled={saving}>
               Отмена
             </button>
           )}
@@ -440,11 +472,7 @@ function MenuItemsPage() {
       ) : (
         <>
           {renderSection("Кухня", kitchenItems, "Товары кухни пока не добавлены")}
-          {renderSection(
-            "Сборка",
-            assemblyItems,
-            "Товары сборки пока не добавлены"
-          )}
+          {renderSection("Сборка", assemblyItems, "Товары сборки пока не добавлены")}
         </>
       )}
     </div>
@@ -453,64 +481,128 @@ function MenuItemsPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    padding: "20px",
+    minHeight: "100vh",
+    padding: "28px",
+    background: "#f8fafc",
+    color: "#111827",
+  },
+  header: {
+    marginBottom: "22px",
+  },
+  headerBadge: {
+    display: "inline-flex",
+    padding: "7px 12px",
+    borderRadius: "999px",
+    background: "#111827",
+    color: "#fff",
+    fontSize: "12px",
+    fontWeight: 900,
+    marginBottom: "10px",
   },
   title: {
-    marginTop: 0,
-    marginBottom: "20px",
-    fontSize: "28px",
-    fontWeight: 800,
-    color: "#111",
+    margin: 0,
+    fontSize: "34px",
+    fontWeight: 950,
+    color: "#111827",
+  },
+  subtitle: {
+    margin: "8px 0 0",
+    color: "#64748b",
+    fontSize: "15px",
   },
   formCard: {
     display: "grid",
-    gap: "14px",
+    gap: "16px",
     background: "#fff",
-    border: "1px solid #eaeaea",
-    borderRadius: "16px",
-    padding: "18px",
-    marginBottom: "24px",
+    border: "1px solid #e5e7eb",
+    borderRadius: "26px",
+    padding: "22px",
+    marginBottom: "28px",
+    boxShadow: "0 18px 45px rgba(15, 23, 42, 0.08)",
+  },
+  formHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "16px",
+    alignItems: "flex-start",
+  },
+  formTitle: {
+    margin: 0,
+    fontSize: "24px",
+    fontWeight: 950,
+  },
+  formSubtitle: {
+    margin: "6px 0 0",
+    color: "#64748b",
+    fontSize: "14px",
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "14px",
   },
   field: {
     display: "grid",
     gap: "8px",
   },
-  doubleRow: {
+  tripleRow: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: "14px",
   },
   label: {
-    fontSize: "14px",
-    fontWeight: 600,
-    color: "#333",
+    fontSize: "13px",
+    fontWeight: 900,
+    color: "#475569",
   },
   input: {
-    padding: "12px 14px",
-    borderRadius: "10px",
-    border: "1px solid #ccc",
+    height: "46px",
+    padding: "0 14px",
+    borderRadius: "14px",
+    border: "1px solid #dbe3ee",
     fontSize: "15px",
     outline: "none",
+    background: "#fff",
+    color: "#111827",
+    fontWeight: 700,
   },
   textarea: {
-    minHeight: "100px",
-    padding: "12px 14px",
-    borderRadius: "10px",
-    border: "1px solid #ccc",
+    minHeight: "110px",
+    padding: "14px",
+    borderRadius: "16px",
+    border: "1px solid #dbe3ee",
     fontSize: "15px",
     outline: "none",
     resize: "vertical",
     fontFamily: "inherit",
+    fontWeight: 700,
   },
   previewBox: {
-    padding: "4px 0 0",
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    padding: "12px",
+    borderRadius: "18px",
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
   },
   largePreview: {
-    width: "120px",
-    height: "120px",
+    width: "96px",
+    height: "96px",
     objectFit: "cover",
-    borderRadius: "14px",
+    borderRadius: "18px",
     border: "1px solid #e5e7eb",
+  },
+  previewTitle: {
+    display: "block",
+    color: "#111827",
+    fontSize: "15px",
+    fontWeight: 900,
+  },
+  previewText: {
+    margin: "4px 0 0",
+    color: "#64748b",
+    fontSize: "13px",
   },
   buttonRow: {
     display: "flex",
@@ -518,153 +610,189 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   button: {
-    width: "fit-content",
     border: "none",
-    background: "#111",
+    background: "#16a34a",
     color: "#fff",
-    borderRadius: "10px",
-    padding: "12px 18px",
+    borderRadius: "14px",
+    padding: "13px 20px",
     cursor: "pointer",
-    fontWeight: 700,
+    fontWeight: 900,
     fontSize: "14px",
+    boxShadow: "0 12px 24px rgba(22, 163, 74, 0.22)",
   },
   cancelButton: {
-    width: "fit-content",
-    border: "1px solid #ccc",
+    border: "1px solid #cbd5e1",
     background: "#fff",
-    color: "#111",
-    borderRadius: "10px",
-    padding: "12px 18px",
-    cursor: "pointer",
-    fontWeight: 700,
-    fontSize: "14px",
-  },
-  section: {
-    marginTop: "24px",
-  },
-  sectionTitle: {
-    margin: "0 0 12px 0",
-    fontSize: "22px",
-    fontWeight: 800,
-    color: "#111",
-  },
-  list: {
-    display: "grid",
-    gap: "12px",
-  },
-  emptyBox: {
-    background: "#fff",
-    border: "1px solid #eaeaea",
+    color: "#111827",
     borderRadius: "14px",
-    padding: "16px",
-    color: "#666",
+    padding: "13px 20px",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: "14px",
   },
   errorBox: {
-    background: "#fef3f2",
-    border: "1px solid #fecdca",
-    color: "#b42318",
-    borderRadius: "10px",
-    padding: "12px 14px",
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    color: "#b91c1c",
+    borderRadius: "14px",
+    padding: "13px 14px",
     fontSize: "14px",
-    fontWeight: 600,
+    fontWeight: 800,
   },
-  item: {
+  section: {
+    marginTop: "30px",
+  },
+  sectionHead: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
     gap: "16px",
-    background: "#fff",
-    border: "1px solid #eaeaea",
-    borderRadius: "14px",
-    padding: "16px",
+    alignItems: "flex-end",
+    marginBottom: "16px",
   },
-  itemLeft: {
+  sectionTitle: {
+    margin: 0,
+    fontSize: "26px",
+    fontWeight: 950,
+    color: "#111827",
+  },
+  sectionSubtitle: {
+    margin: "4px 0 0",
+    color: "#64748b",
+    fontSize: "14px",
+    fontWeight: 700,
+  },
+  cardGrid: {
     display: "grid",
-    gap: "8px",
+    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+    gap: "18px",
+  },
+  foodCard: {
+    minHeight: "420px",
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "26px",
+    overflow: "hidden",
+    boxShadow: "0 16px 38px rgba(15, 23, 42, 0.08)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  foodImageWrap: {
+    position: "relative",
+    height: "190px",
+    background: "linear-gradient(135deg, #111827, #334155)",
+  },
+  foodImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+  noImage: {
+    width: "100%",
+    height: "100%",
+    display: "grid",
+    placeItems: "center",
+    color: "#fff",
+    fontWeight: 900,
+    fontSize: "15px",
+  },
+  sectionBadge: {
+    position: "absolute",
+    top: "12px",
+    left: "12px",
+    padding: "7px 11px",
+    borderRadius: "999px",
+    background: "rgba(17, 24, 39, 0.82)",
+    color: "#fff",
+    fontSize: "12px",
+    fontWeight: 900,
+    backdropFilter: "blur(8px)",
+  },
+  foodBody: {
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
     flex: 1,
   },
-  badges: {
+  foodBadges: {
     display: "flex",
-    gap: "8px",
     flexWrap: "wrap",
-  },
-  badge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: "#f2f4f7",
-    color: "#344054",
-    fontSize: "12px",
-    fontWeight: 700,
+    gap: "7px",
   },
   categoryBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
+    padding: "6px 9px",
     borderRadius: "999px",
-    background: "#ecfdf3",
-    color: "#027a48",
-    fontSize: "12px",
-    fontWeight: 700,
+    background: "#ecfdf5",
+    color: "#047857",
+    fontSize: "11px",
+    fontWeight: 900,
   },
   sortBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
+    padding: "6px 9px",
     borderRadius: "999px",
-    background: "#eef4ff",
-    color: "#1d4ed8",
-    fontSize: "12px",
-    fontWeight: 700,
+    background: "#eef2ff",
+    color: "#3730a3",
+    fontSize: "11px",
+    fontWeight: 900,
   },
-  itemTitle: {
-    fontSize: "18px",
-    fontWeight: 700,
-    color: "#111",
+  foodTitle: {
+    margin: 0,
+    color: "#111827",
+    fontSize: "20px",
+    fontWeight: 950,
+    lineHeight: 1.15,
   },
-  itemDescription: {
+  foodDescription: {
+    margin: 0,
+    minHeight: "42px",
+    color: "#64748b",
     fontSize: "14px",
-    color: "#475467",
-    lineHeight: 1.5,
+    lineHeight: 1.45,
   },
-  metaRow: {
-    display: "flex",
-    gap: "16px",
-    flexWrap: "wrap",
-    fontSize: "14px",
-    fontWeight: 600,
-    color: "#111",
+  foodMeta: {
+    marginTop: "auto",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
   },
-  imagePreview: {
-    width: "72px",
-    height: "72px",
-    objectFit: "cover",
-    borderRadius: "12px",
-    border: "1px solid #e5e7eb",
-    marginTop: "4px",
+  foodMeta: {
+    marginTop: "auto",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
   },
   actions: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+    marginTop: "4px",
   },
   editButton: {
-    border: "1px solid #ccc",
+    border: "1px solid #cbd5e1",
     background: "#fff",
-    borderRadius: "10px",
-    padding: "10px 14px",
+    color: "#111827",
+    borderRadius: "13px",
+    padding: "11px 12px",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 900,
   },
   deleteButton: {
     border: "none",
-    background: "#d92d20",
+    background: "#dc2626",
     color: "#fff",
-    borderRadius: "10px",
-    padding: "10px 14px",
+    borderRadius: "13px",
+    padding: "11px 12px",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 900,
+  },
+  emptyBox: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    padding: "20px",
+    color: "#64748b",
+    fontWeight: 800,
   },
 };
 

@@ -14,6 +14,7 @@ import ClientMonitor from './pages/ClientMonitor/ClientMonitor'
 import HallMonitor from './pages/HallMonitor/HallMonitor'
 import HistoryPage from './pages/History/HistoryPage'
 import KitchenMonitor from './pages/KitchenMonitor/KitchenMonitor'
+import TechInventoryPage from "./pages/Admin/TechInventoryPage";
 
 import AdminAccessRequestsPage from './pages/Admin/AdminAccessRequestsPage'
 import AdminCreateStaffPage from './pages/Admin/AdminCreateStaffPage'
@@ -93,6 +94,7 @@ function App() {
             </RoleRoute>
           }
         >
+          <Route path="/admin/inventory" element={<TechInventoryPage />} />
           <Route index element={<AdminOrdersPage />} />
           <Route path='daily' element={<DailyStatsPage />} />
           <Route path='weekly' element={<WeeklyStatsPage />} />

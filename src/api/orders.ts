@@ -31,6 +31,14 @@ const ORDER_SELECT_FIELDS = `
   paid_at
 `;
 
+const normalizeOrder = (order: any): IOrderRow => {
+  return {
+    ...order,
+    items: Array.isArray(order?.items) ? order.items : [],
+    total: Number(order?.total || 0),
+  } as IOrderRow;
+};
+
 export async function fetchOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
     .from("orders")
@@ -38,7 +46,7 @@ export async function fetchOrders(): Promise<IOrderRow[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data || []) as IOrderRow[];
+  return (data || []).map(normalizeOrder);
 }
 
 export async function fetchActiveOrders(): Promise<IOrderRow[]> {
@@ -49,18 +57,21 @@ export async function fetchActiveOrders(): Promise<IOrderRow[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data || []) as IOrderRow[];
+  return (data || []).map(normalizeOrder);
 }
 
 export async function fetchHistoryOrders(): Promise<IOrderRow[]> {
   const { data, error } = await supabase
     .from("orders_archive")
-    .select(ORDER_SELECT_FIELDS)
+    .select("*")
     .order("created_at", { ascending: false })
     .limit(300);
 
+  console.log("HISTORY ARCHIVE ERROR:", error);
+  console.log("HISTORY ARCHIVE DATA:", data);
+
   if (error) throw new Error(error.message);
-  return (data || []) as IOrderRow[];
+  return (data || []).map(normalizeOrder);
 }
 
 export async function fetchArchivedOrdersByDateRange(
@@ -69,13 +80,26 @@ export async function fetchArchivedOrdersByDateRange(
 ): Promise<IOrderRow[]> {
   const { data, error } = await supabase
     .from("orders_archive")
-    .select(ORDER_SELECT_FIELDS)
-    .gte("created_at", startDate)
-    .lte("created_at", endDate)
+    .select("*")
     .order("created_at", { ascending: false });
 
+  console.log("ORDERS ARCHIVE ERROR:", error);
+  console.log("ORDERS ARCHIVE DATA:", data);
+
   if (error) throw new Error(error.message);
-  return (data || []) as IOrderRow[];
+
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+
+  return (data || [])
+    .filter((order: any) => {
+      const date = order.created_at || order.archived_at || order.paid_at;
+      if (!date) return true;
+
+      const time = new Date(date).getTime();
+      return time >= start && time <= end;
+    })
+    .map(normalizeOrder);
 }
 
 async function getNextDailyOrderNumber(): Promise<number> {
@@ -155,7 +179,7 @@ export async function createOrder(
     .single();
 
   if (error) throw new Error(error.message);
-  return data as IOrderRow;
+  return normalizeOrder(data);
 }
 
 export async function updateOrderStatus(
@@ -173,7 +197,7 @@ export async function updateOrderStatus(
     .single();
 
   if (error) throw new Error(error.message);
-  return data as IOrderRow;
+  return normalizeOrder(data);
 }
 
 export async function updateOrderWorkflow(
@@ -242,13 +266,16 @@ export async function updateOrderComment(
     .single();
 
   if (error) throw new Error(error.message);
-  return data as IOrderRow;
+  return normalizeOrder(data);
 }
 
 export async function archiveCompletedOrdersByDay(targetDay: string) {
   const { data, error } = await supabase.rpc("archive_completed_orders_by_day", {
     target_day: targetDay,
   });
+
+  console.log("ARCHIVE RPC ERROR:", error);
+  console.log("ARCHIVE RPC DATA:", data);
 
   if (error) throw new Error(error.message);
   return data;

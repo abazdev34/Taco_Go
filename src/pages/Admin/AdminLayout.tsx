@@ -4,20 +4,29 @@ import "./AdminLayout.scss";
 
 const menuItems = [
   { to: "/admin", icon: "📊", label: "Главная", end: true },
+
   { to: "/admin/daily", icon: "📅", label: "Дневная статистика" },
   { to: "/admin/weekly", icon: "🗓️", label: "Недельная статистика" },
   { to: "/admin/monthly", icon: "🗂️", label: "Месячная статистика" },
+
   { to: "/admin/order-history", icon: "🕘", label: "История заказов" },
+
   { to: "/admin/categories", icon: "📂", label: "Категории" },
   { to: "/admin/menu-items", icon: "🍔", label: "Меню" },
+
   { to: "/admin/tech-cards", icon: "🧾", label: "Тех карты" },
+
+  // 🔥 ЖАҢЫ КОШУЛДУ
+  { to: "/admin/inventory", icon: "📦", label: "Склад" },
+
   { to: "/admin/users", icon: "👥", label: "Пользователи" },
   { to: "/admin/create-staff", icon: "👤", label: "Создать сотрудника" },
+
   { to: "/admin/cash-monitor", icon: "💰", label: "Кассовый контроль" },
 ];
 
 const MenuIcon = () => (
-  <svg viewBox="0 0 24 24" aria-hidden="true">
+  <svg viewBox="0 0 24 24">
     <path
       d="M4 7h16M4 12h16M4 17h16"
       fill="none"
@@ -29,7 +38,7 @@ const MenuIcon = () => (
 );
 
 const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" aria-hidden="true">
+  <svg viewBox="0 0 24 24">
     <path
       d="M6 6l12 12M18 6 6 18"
       fill="none"
@@ -44,8 +53,16 @@ function AdminNav({ onClick }: { onClick?: () => void }) {
   return (
     <nav className="admin-sidebar__nav">
       {menuItems.map((item) => (
-        <NavLink key={item.to} to={item.to} end={item.end} onClick={onClick}>
-          <span>{item.icon}</span>
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.end}
+          onClick={onClick}
+          className={({ isActive }) =>
+            isActive ? "active admin-link" : "admin-link"
+          }
+        >
+          <span className="icon">{item.icon}</span>
           <span>{item.label}</span>
         </NavLink>
       ))}
@@ -60,8 +77,8 @@ function AdminLayout() {
 
   return (
     <div className="admin-layout">
+      {/* MOBILE BUTTON */}
       <button
-        type="button"
         className="admin-mobile-toggle"
         onClick={() => setMobileSidebarOpen(true)}
       >
@@ -69,6 +86,7 @@ function AdminLayout() {
         <span>Меню</span>
       </button>
 
+      {/* DESKTOP SIDEBAR */}
       <aside className="admin-sidebar admin-sidebar--desktop">
         <div className="admin-sidebar__brand">
           <span className="admin-sidebar__badge">Панель управления</span>
@@ -78,6 +96,7 @@ function AdminLayout() {
         <AdminNav />
       </aside>
 
+      {/* MOBILE SIDEBAR */}
       {mobileSidebarOpen && (
         <div className="admin-mobile-sidebar">
           <div
@@ -95,7 +114,6 @@ function AdminLayout() {
               </div>
 
               <button
-                type="button"
                 className="admin-mobile-close"
                 onClick={closeSidebar}
               >
@@ -108,6 +126,7 @@ function AdminLayout() {
         </div>
       )}
 
+      {/* CONTENT */}
       <main className="admin-content">
         <Outlet />
       </main>

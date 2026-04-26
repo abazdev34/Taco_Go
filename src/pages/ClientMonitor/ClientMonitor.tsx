@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchMenuItems } from "../../api/menuItems";
 import { createOrder, updateCashierOrder } from "../../api/orders";
@@ -53,7 +53,21 @@ function ClientMonitor() {
         const data = await fetchMenuItems(true);
 
         if (!mounted) return;
-        setMenu(Array.isArray(data) ? data : []);
+
+        const prepared = Array.isArray(data)
+          ? data
+              .filter((item) => item?.is_active !== false)
+              .sort((a, b) => {
+                const catA = a?.categories?.sort_order ?? 0;
+                const catB = b?.categories?.sort_order ?? 0;
+
+                if (catA !== catB) return catA - catB;
+
+                return (a?.sort_order ?? 0) - (b?.sort_order ?? 0);
+              })
+          : [];
+
+        setMenu(prepared);
       } catch (e: any) {
         if (!mounted) return;
         setError(e?.message || "Не удалось загрузить меню");
@@ -74,7 +88,7 @@ function ClientMonitor() {
 
     for (const item of menu) {
       const cat = item.categories;
-      if (!cat) continue;
+      if (!cat?.id) continue;
 
       if (!map.has(cat.id)) {
         map.set(cat.id, {
@@ -87,7 +101,7 @@ function ClientMonitor() {
     }
 
     return [
-      { id: "all", name: "Все", image: null },
+      { id: "all", name: "Все", image: null, sort: -1 },
       ...Array.from(map.values()).sort((a, b) => a.sort - b.sort),
     ];
   }, [menu]);
@@ -97,36 +111,37 @@ function ClientMonitor() {
     return menu.filter((item) => item.categories?.id === activeCategory);
   }, [menu, activeCategory]);
 
-  const getItemImage = (item: any) => {
+  const getItemImage = useCallback((item: any) => {
     return item?.image_url || item?.image || DEFAULT_IMAGE;
-  };
+  }, []);
 
-  const scrollCategories = (direction: "left" | "right") => {
+  const scrollCategories = useCallback((direction: "left" | "right") => {
     categoryRef.current?.scrollBy({
       left: direction === "left" ? -280 : 280,
       behavior: "smooth",
     });
-  };
+  }, []);
 
-  const openItemModal = (item: any) => {
+  const openItemModal = useCallback((item: any) => {
     setSelectedItem(item);
     setSelectedQty(1);
-  };
+  }, []);
 
-  const closeItemModal = () => {
+  const closeItemModal = useCallback(() => {
     setSelectedItem(null);
     setSelectedQty(1);
-  };
+  }, []);
 
-  const addSelectedToCart = () => {
+  const addSelectedToCart = useCallback(() => {
     if (!selectedItem) return;
 
-    for (let i = 0; i < selectedQty; i += 1) {
-      addToCart(selectedItem);
-    }
+    addToCart({
+      ...selectedItem,
+      quantity: selectedQty,
+    });
 
     closeItemModal();
-  };
+  }, [selectedItem, selectedQty, addToCart, closeItemModal]);
 
   const handleCreateOrder = async () => {
     if (!cart.length || submitting) return;
@@ -404,6 +419,8 @@ function ClientMonitor() {
                       className="client-cart-item__image"
                       src={getItemImage(item)}
                       alt={item.title}
+                      loading="lazy"
+                      decoding="async"
                     />
 
                     <div className="client-cart-item__content">

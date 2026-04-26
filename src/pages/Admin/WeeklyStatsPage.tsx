@@ -3,11 +3,6 @@ import { fetchArchivedOrdersByDateRange } from '../../api/orders'
 import { IOrderRow } from '../../types/order'
 import { formatPrice } from '../../utils/currency'
 import {
-  buildWeeklyChartData,
-  getOverviewStats,
-  groupOrdersByDay,
-} from '../../utils/orderStats'
-import {
   BarChart,
   Bar,
   CartesianGrid,
@@ -21,22 +16,27 @@ import {
 } from 'recharts'
 import './AdminStatsPages.scss'
 
-function getWeekRange() {
-  const now = new Date()
-  const day = now.getDay() || 7
+const START_DATE = '2000-01-01T00:00:00.000Z'
+const END_DATE = '2100-01-01T00:00:00.000Z'
 
-  const start = new Date(now)
-  start.setDate(now.getDate() - day + 1)
-  start.setHours(0, 0, 0, 0)
+const getPayMethod = (order: any) => {
+  return order.payment_method || order.paymentMethod || 'cash'
+}
 
-  const end = new Date(start)
-  end.setDate(start.getDate() + 6)
-  end.setHours(23, 59, 59, 999)
+const getOrderDate = (order: any) => {
+  return order.created_at || order.archived_at || order.paid_at || order.updated_at
+}
 
-  return {
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-  }
+const getDayKey = (date: string) => {
+  return new Date(date).toISOString().slice(0, 10)
+}
+
+const getDayLabel = (date: string) => {
+  return new Date(date).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 function WeeklyStatsPage() {
@@ -52,14 +52,15 @@ function WeeklyStatsPage() {
         setLoading(true)
         setError('')
 
-        const { startDate, endDate } = getWeekRange()
-        const data = await fetchArchivedOrdersByDateRange(startDate, endDate)
+        const data = await fetchArchivedOrdersByDateRange(START_DATE, END_DATE)
+
+        console.log('ARCHIVE DATA:', data)
 
         if (!active) return
-        setOrders(data || [])
+        setOrders(Array.isArray(data) ? data : [])
       } catch (e: any) {
         if (!active) return
-        setError(e?.message || 'Не удалось загрузить недельную статистику')
+        setError(e?.message || 'Не удалось загрузить статистику')
       } finally {
         if (active) setLoading(false)
       }
@@ -72,9 +73,89 @@ function WeeklyStatsPage() {
     }
   }, [])
 
-  const stats = useMemo(() => getOverviewStats(orders), [orders])
-  const groupedDays = useMemo(() => groupOrdersByDay(orders), [orders])
-  const chartData = useMemo(() => buildWeeklyChartData(orders), [orders])
+  const stats = useMemo(() => {
+    return orders.reduce(
+      (acc, order: any) => {
+        const total = Number(order.total || 0)
+        const method = getPayMethod(order)
+
+        acc.totalOrders += 1
+        acc.totalAmount += total
+
+        if (method === 'online') {
+          acc.onlineAmount += total
+        } else {
+          acc.cashAmount += total
+        }
+
+        return acc
+      },
+      {
+        totalOrders: 0,
+        totalAmount: 0,
+        onlineAmount: 0,
+        cashAmount: 0,
+      }
+    )
+  }, [orders])
+
+  const groupedDays = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        dateKey: string
+        dateLabel: string
+        totalOrders: number
+        totalAmount: number
+        onlineAmount: number
+        cashAmount: number
+      }
+    >()
+
+    orders.forEach((order: any) => {
+      const date = getOrderDate(order)
+      if (!date) return
+
+      const key = getDayKey(date)
+      const total = Number(order.total || 0)
+      const method = getPayMethod(order)
+
+      if (!map.has(key)) {
+        map.set(key, {
+          dateKey: key,
+          dateLabel: getDayLabel(date),
+          totalOrders: 0,
+          totalAmount: 0,
+          onlineAmount: 0,
+          cashAmount: 0,
+        })
+      }
+
+      const current = map.get(key)!
+      current.totalOrders += 1
+      current.totalAmount += total
+
+      if (method === 'online') {
+        current.onlineAmount += total
+      } else {
+        current.cashAmount += total
+      }
+    })
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.dateKey.localeCompare(b.dateKey)
+    )
+  }, [orders])
+
+  const chartData = useMemo(() => {
+    return groupedDays.map(day => ({
+      name: day.dateLabel,
+      Заказы: day.totalOrders,
+      Сумма: day.totalAmount,
+      Онлайн: day.onlineAmount,
+      Наличные: day.cashAmount,
+    }))
+  }, [groupedDays])
 
   return (
     <div className='admin-stats-page'>
@@ -82,7 +163,7 @@ function WeeklyStatsPage() {
         <div>
           <span className='admin-stats-badge'>Статистика</span>
           <h1>Недельная статистика</h1>
-          <p>Данные берутся только из архива за текущую неделю.</p>
+          <p>Данные из архива заказов</p>
         </div>
       </div>
 
@@ -90,6 +171,10 @@ function WeeklyStatsPage() {
         <div className='admin-stats-empty'>Загрузка...</div>
       ) : error ? (
         <div className='admin-stats-empty'>{error}</div>
+      ) : orders.length === 0 ? (
+        <div className='admin-stats-empty'>
+          Архив пуст или нет доступа к orders_archive
+        </div>
       ) : (
         <>
           <div className='admin-stats-cards'>
@@ -116,73 +201,57 @@ function WeeklyStatsPage() {
 
           <div className='admin-stats-grid'>
             <section className='admin-stats-panel'>
-              <div className='admin-stats-panel__head'>
-                <h3>Количество заказов по дням</h3>
-              </div>
+              <h3>Заказы по дням</h3>
 
-              <div className='admin-chart-box'>
-                <ResponsiveContainer width='100%' height={320}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray='3 3' />
-                    <XAxis dataKey='name' />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey='Заказы' />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width='100%' height={300}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray='3 3' />
+                  <XAxis dataKey='name' />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey='Заказы' />
+                </BarChart>
+              </ResponsiveContainer>
             </section>
 
             <section className='admin-stats-panel'>
-              <div className='admin-stats-panel__head'>
-                <h3>Суммы по дням</h3>
-              </div>
+              <h3>Суммы</h3>
 
-              <div className='admin-chart-box'>
-                <ResponsiveContainer width='100%' height={320}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray='3 3' />
-                    <XAxis dataKey='name' />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type='monotone' dataKey='Сумма' strokeWidth={2} />
-                    <Line type='monotone' dataKey='Онлайн' strokeWidth={2} />
-                    <Line type='monotone' dataKey='Наличные' strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width='100%' height={300}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray='3 3' />
+                  <XAxis dataKey='name' />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type='monotone' dataKey='Сумма' strokeWidth={2} />
+                  <Line type='monotone' dataKey='Онлайн' strokeWidth={2} />
+                  <Line type='monotone' dataKey='Наличные' strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
             </section>
           </div>
 
           <section className='admin-stats-panel'>
-            <div className='admin-stats-panel__head'>
-              <h3>Разбивка по дням недели</h3>
-            </div>
+            <h3>По дням</h3>
 
-            {groupedDays.length === 0 ? (
-              <div className='admin-stats-empty admin-stats-empty--small'>
-                Нет данных
-              </div>
-            ) : (
-              <div className='admin-days-list'>
-                {groupedDays.map(day => (
-                  <div key={day.dateKey} className='admin-day-row'>
-                    <div>
-                      <strong>{day.dateLabel}</strong>
-                      <span>{day.totalOrders} заказов</span>
-                    </div>
-
-                    <div className='admin-day-row__stats'>
-                      <span>Онлайн: {formatPrice(day.onlineAmount)}</span>
-                      <span>Наличные: {formatPrice(day.cashAmount)}</span>
-                      <b>{formatPrice(day.totalAmount)}</b>
-                    </div>
+            <div className='admin-days-list'>
+              {groupedDays.map(day => (
+                <div key={day.dateKey} className='admin-day-row'>
+                  <div>
+                    <strong>{day.dateLabel}</strong>
+                    <span>{day.totalOrders} заказов</span>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <div>
+                    Онлайн: {formatPrice(day.onlineAmount)} | Наличные:{' '}
+                    {formatPrice(day.cashAmount)} |{' '}
+                    <b>{formatPrice(day.totalAmount)}</b>
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         </>
       )}

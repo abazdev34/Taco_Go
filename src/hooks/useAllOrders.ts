@@ -1,77 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchOrders } from '../api/orders'
 import { IOrderRow } from '../types/order'
-import { supabase } from '../lib/supabase'
+
+const MAX_ORDERS = 300
+const POLLING_INTERVAL_MS = 2000
 
 function getOrderTime(order: IOrderRow) {
-  const raw = order?.created_at || order?.updated_at || ''
+  const raw = order?.updated_at || order?.created_at || ''
   const time = raw ? new Date(raw).getTime() : 0
   return Number.isNaN(time) ? 0 : time
 }
 
-function uniqueOrdersById(list: IOrderRow[]) {
+function mergeOrder(oldOrder: IOrderRow, newOrder: IOrderRow): IOrderRow {
+  return {
+    ...oldOrder,
+    ...newOrder,
+    items:
+      Array.isArray(newOrder.items) && newOrder.items.length > 0
+        ? newOrder.items
+        : oldOrder.items,
+    assembly_progress: Array.isArray(newOrder.assembly_progress)
+      ? newOrder.assembly_progress
+      : oldOrder.assembly_progress,
+  }
+}
+
+function normalizeOrders(list: IOrderRow[]) {
   const map = new Map<string, IOrderRow>()
 
   for (const order of list) {
     if (!order?.id) continue
 
     const existing = map.get(order.id)
-
-    if (!existing) {
-      map.set(order.id, order)
-      continue
-    }
-
-    const existingTime = getOrderTime(existing)
-    const nextTime = getOrderTime(order)
-
-    if (nextTime >= existingTime) {
-      map.set(order.id, {
-        ...existing,
-        ...order,
-      })
-    }
+    map.set(order.id, existing ? mergeOrder(existing, order) : order)
   }
 
   return Array.from(map.values())
-}
+    .sort((a, b) => {
+      const diff = getOrderTime(b) - getOrderTime(a)
+      if (diff !== 0) return diff
 
-function sortOrders(list: IOrderRow[]) {
-  return [...list].sort((a, b) => {
-    const aTime = getOrderTime(a)
-    const bTime = getOrderTime(b)
-
-    if (aTime !== bTime) {
-      return bTime - aTime
-    }
-
-    return Number(b?.order_number || 0) - Number(a?.order_number || 0)
-  })
-}
-
-function normalizeOrders(list: IOrderRow[]) {
-  return sortOrders(uniqueOrdersById(Array.isArray(list) ? list : []))
-}
-
-function upsertOrder(list: IOrderRow[], order: IOrderRow) {
-  const next = [...list]
-  const index = next.findIndex((item) => item.id === order.id)
-
-  if (index === -1) {
-    return normalizeOrders([order, ...next])
-  }
-
-  next[index] = {
-    ...next[index],
-    ...order,
-  }
-
-  return normalizeOrders(next)
-}
-
-function removeOrder(list: IOrderRow[], id?: string) {
-  if (!id) return normalizeOrders(list)
-  return normalizeOrders(list.filter((item) => item.id !== id))
+      return (
+        Number(b.daily_order_number || b.order_number || 0) -
+        Number(a.daily_order_number || a.order_number || 0)
+      )
+    })
+    .slice(0, MAX_ORDERS)
 }
 
 export function useAllOrders() {
@@ -79,79 +53,47 @@ export function useAllOrders() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const mountedRef = useRef(false)
+  const firstLoadRef = useRef(true)
+
   useEffect(() => {
-    let isMounted = true
+    mountedRef.current = true
 
     const load = async () => {
       try {
-        setLoading(true)
-        setError('')
+        if (firstLoadRef.current) {
+          setLoading(true)
+        }
 
         const data = await fetchOrders()
 
-        if (!isMounted) return
+        if (!mountedRef.current) return
 
         setOrders(normalizeOrders(Array.isArray(data) ? data : []))
+        setError('')
       } catch (err: any) {
-        console.error('LOAD ALL ORDERS ERROR:', err)
+        console.error('ALL ORDERS POLLING ERROR:', err)
 
-        if (!isMounted) return
+        if (!mountedRef.current) return
 
         setError(err?.message || 'Не удалось загрузить заказы')
-        setOrders([])
       } finally {
-        if (isMounted) {
+        if (mountedRef.current) {
           setLoading(false)
+          firstLoadRef.current = false
         }
       }
     }
 
     void load()
 
-    const channel = supabase
-      .channel('orders-all-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-        },
-        (payload) => {
-          if (!isMounted) return
-
-          const eventType = payload.eventType
-          const newRow = payload.new as IOrderRow | undefined
-          const oldRow = payload.old as IOrderRow | undefined
-
-          setOrders((prev) => {
-            const safePrev = Array.isArray(prev) ? prev : []
-
-            if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRow) {
-              return upsertOrder(safePrev, newRow)
-            }
-
-            if (eventType === 'DELETE') {
-              return removeOrder(safePrev, oldRow?.id)
-            }
-
-            return normalizeOrders(safePrev)
-          })
-        }
-      )
-      .subscribe((status) => {
-        console.log('ALL ORDERS CHANNEL STATUS:', status)
-
-        if (!isMounted) return
-
-        if (status === 'CHANNEL_ERROR') {
-          setError('Realtime connection error')
-        }
-      })
+    const interval = window.setInterval(() => {
+      void load()
+    }, POLLING_INTERVAL_MS)
 
     return () => {
-      isMounted = false
-      void supabase.removeChannel(channel)
+      mountedRef.current = false
+      window.clearInterval(interval)
     }
   }, [])
 

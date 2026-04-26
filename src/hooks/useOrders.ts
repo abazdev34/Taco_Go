@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchActiveOrders } from '../api/orders'
-import { supabase } from '../lib/supabase'
 import { IOrderRow } from '../types/order'
 
-const ACTIVE_STATUSES = ['pending', 'new', 'preparing', 'ready']
+const ACTIVE_STATUSES = new Set(['pending', 'new', 'preparing', 'ready'])
 const MAX_ACTIVE_ORDERS = 120
+const POLLING_INTERVAL_MS = 2000
 
 function getOrderTime(order: IOrderRow) {
   const raw = order?.updated_at || order?.created_at || ''
@@ -13,7 +13,7 @@ function getOrderTime(order: IOrderRow) {
 }
 
 function isActiveOrder(order?: IOrderRow | null) {
-  return !!order?.id && ACTIVE_STATUSES.includes(String(order.status || ''))
+  return !!order?.id && ACTIVE_STATUSES.has(String(order.status || ''))
 }
 
 function mergeOrder(oldOrder: IOrderRow, newOrder: IOrderRow): IOrderRow {
@@ -35,6 +35,7 @@ function normalizeOrders(list: IOrderRow[]) {
 
   for (const order of list) {
     if (!isActiveOrder(order)) continue
+
     const existing = map.get(order.id)
     map.set(order.id, existing ? mergeOrder(existing, order) : order)
   }
@@ -52,93 +53,51 @@ function normalizeOrders(list: IOrderRow[]) {
     .slice(0, MAX_ACTIVE_ORDERS)
 }
 
-function upsertOrder(prev: IOrderRow[], incoming: IOrderRow) {
-  if (!isActiveOrder(incoming)) {
-    return prev.filter(order => order.id !== incoming.id)
-  }
-
-  const index = prev.findIndex(order => order.id === incoming.id)
-
-  if (index === -1) {
-    return normalizeOrders([incoming, ...prev])
-  }
-
-  const next = [...prev]
-  next[index] = mergeOrder(next[index], incoming)
-
-  return normalizeOrders(next)
-}
-
 export function useOrders() {
   const [orders, setOrders] = useState<IOrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const mountedRef = useRef(false)
+  const firstLoadRef = useRef(true)
 
   useEffect(() => {
     mountedRef.current = true
 
     const load = async () => {
       try {
-        setLoading(true)
-        setError('')
+        if (firstLoadRef.current) {
+          setLoading(true)
+        }
 
         const data = await fetchActiveOrders()
 
         if (!mountedRef.current) return
+
         setOrders(normalizeOrders(Array.isArray(data) ? data : []))
+        setError('')
       } catch (e: any) {
         if (!mountedRef.current) return
+
+        console.error('ORDERS POLLING ERROR:', e)
         setError(e?.message || 'Не удалось загрузить заказы')
-        setOrders([])
       } finally {
-        if (mountedRef.current) setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+          firstLoadRef.current = false
+        }
       }
     }
 
     void load()
 
-    const channel = supabase
-      .channel('orders-active-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: 'status=in.(pending,new,preparing,ready,completed,cancelled)',
-        },
-        payload => {
-          if (!mountedRef.current) return
-
-          const newRow = payload.new as IOrderRow | undefined
-          const oldRow = payload.old as IOrderRow | undefined
-
-          setOrders(prev => {
-            if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && newRow) {
-              return upsertOrder(prev, newRow)
-            }
-
-            if (payload.eventType === 'DELETE' && oldRow?.id) {
-              return prev.filter(order => order.id !== oldRow.id)
-            }
-
-            return prev
-          })
-        }
-      )
-      .subscribe(status => {
-        if (!mountedRef.current) return
-
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setError('Ошибка realtime соединения')
-        }
-      })
+    const interval = window.setInterval(() => {
+      void load()
+    }, POLLING_INTERVAL_MS)
 
     return () => {
       mountedRef.current = false
-      void supabase.removeChannel(channel)
+      window.clearInterval(interval)
     }
   }, [])
 

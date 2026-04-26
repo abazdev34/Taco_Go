@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useOrders } from '../../hooks/useOrders'
 import { updateOrderWorkflow } from '../../api/orders'
-import '../Navbar/monitor.scss'
 import { IMenuItem, IOrderRow } from '../../types/order'
 import { getDailyOrderNumber } from '../../utils/orderNumber'
+import './KitchenMonitor.scss'
 
 const KitchenMonitor = () => {
   const { orders = [], loading, error } = useOrders()
@@ -50,32 +50,52 @@ const KitchenMonitor = () => {
       if (!audioUnlockedRef.current) return
 
       const audioCtx = new AudioContextClass()
+      const masterGain = audioCtx.createGain()
 
-      const gain = audioCtx.createGain()
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime)
+      masterGain.gain.setValueAtTime(0.0001, audioCtx.currentTime)
+      masterGain.gain.exponentialRampToValueAtTime(
+        0.18,
+        audioCtx.currentTime + 0.03
+      )
+      masterGain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        audioCtx.currentTime + 1.25
+      )
+      masterGain.connect(audioCtx.destination)
 
-      const osc1 = audioCtx.createOscillator()
-      const osc2 = audioCtx.createOscillator()
+      const notes = [
+        { freq: 659.25, start: 0, duration: 0.28 },
+        { freq: 783.99, start: 0.22, duration: 0.32 },
+        { freq: 987.77, start: 0.48, duration: 0.42 },
+      ]
 
-      osc1.type = 'sawtooth'
-      osc2.type = 'square'
+      notes.forEach(note => {
+        const osc = audioCtx.createOscillator()
+        const gain = audioCtx.createGain()
 
-      osc1.frequency.setValueAtTime(900, audioCtx.currentTime)
-      osc2.frequency.setValueAtTime(1200, audioCtx.currentTime)
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.start)
 
-      osc1.connect(gain)
-      osc2.connect(gain)
-      gain.connect(audioCtx.destination)
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime + note.start)
+        gain.gain.exponentialRampToValueAtTime(
+          0.22,
+          audioCtx.currentTime + note.start + 0.02
+        )
+        gain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          audioCtx.currentTime + note.start + note.duration
+        )
 
-      osc1.start()
-      osc2.start()
+        osc.connect(gain)
+        gain.connect(masterGain)
 
-      osc1.stop(audioCtx.currentTime + 0.4)
-      osc2.stop(audioCtx.currentTime + 0.4)
+        osc.start(audioCtx.currentTime + note.start)
+        osc.stop(audioCtx.currentTime + note.start + note.duration + 0.05)
+      })
 
-      osc2.onended = () => {
+      setTimeout(() => {
         void audioCtx.close()
-      }
+      }, 1400)
     } catch (e) {
       console.error('ALERT ERROR', e)
     }
@@ -89,18 +109,28 @@ const KitchenMonitor = () => {
     return getDailyOrderNumber(targetOrder, orders || [])
   }
 
+  const getKitchenItems = (order: IOrderRow): IMenuItem[] => {
+    return (order.items || []).filter(
+      item => item.categories?.type !== 'assembly'
+    )
+  }
+
+  const getAssemblyItems = (order: IOrderRow): IMenuItem[] => {
+    return (order.items || []).filter(
+      item => item.categories?.type === 'assembly'
+    )
+  }
+
   const kitchenRelevantOrders = useMemo(() => {
     return (orders || [])
-      .filter((order) => {
+      .filter(order => {
         const items = Array.isArray(order.items) ? order.items : []
-
         const hasKitchen = items.some(
-          (item) => item.categories?.type !== 'assembly'
+          item => item.categories?.type !== 'assembly'
         )
 
         if (!hasKitchen) return false
 
-        // Клиент заказ кассир кабыл ала электе кухняга чыкпаш керек
         if (order.source === 'client' && order.status === 'pending') {
           return false
         }
@@ -121,9 +151,7 @@ const KitchenMonitor = () => {
         const aPriority = priorityMap[a.kitchen_status || ''] || 0
         const bPriority = priorityMap[b.kitchen_status || ''] || 0
 
-        if (aPriority !== bPriority) {
-          return bPriority - aPriority
-        }
+        if (aPriority !== bPriority) return bPriority - aPriority
 
         const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
         const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
@@ -132,29 +160,29 @@ const KitchenMonitor = () => {
   }, [orders])
 
   const newOrders = useMemo(
-    () => kitchenRelevantOrders.filter((order) => order.kitchen_status === 'new'),
+    () => kitchenRelevantOrders.filter(order => order.kitchen_status === 'new'),
     [kitchenRelevantOrders]
   )
 
   const preparingOrders = useMemo(
     () =>
       kitchenRelevantOrders.filter(
-        (order) => order.kitchen_status === 'preparing'
+        order => order.kitchen_status === 'preparing'
       ),
     [kitchenRelevantOrders]
   )
 
   const readyOrders = useMemo(
-    () => kitchenRelevantOrders.filter((order) => order.kitchen_status === 'ready'),
+    () => kitchenRelevantOrders.filter(order => order.kitchen_status === 'ready'),
     [kitchenRelevantOrders]
   )
 
   useEffect(() => {
-    const currentNewIds = newOrders.map((order) => order.id)
+    const currentNewIds = newOrders.map(order => order.id)
     const hasNewOrders = currentNewIds.length > 0
 
     const arrivedNewOrders = currentNewIds.some(
-      (id) => !prevNewIdsRef.current.includes(id)
+      id => !prevNewIdsRef.current.includes(id)
     )
 
     if (arrivedNewOrders) {
@@ -164,7 +192,7 @@ const KitchenMonitor = () => {
     if (hasNewOrders && !alertIntervalRef.current) {
       alertIntervalRef.current = window.setInterval(() => {
         playKitchenAlert()
-      }, 1500)
+      }, 6000)
     }
 
     if (!hasNewOrders && alertIntervalRef.current) {
@@ -175,25 +203,13 @@ const KitchenMonitor = () => {
     prevNewIdsRef.current = currentNewIds
   }, [newOrders])
 
-  const getKitchenItems = (order: IOrderRow): IMenuItem[] => {
-    return (order.items || []).filter(
-      (item) => item.categories?.type !== 'assembly'
-    )
-  }
-
-  const getAssemblyItems = (order: IOrderRow): IMenuItem[] => {
-    return (order.items || []).filter(
-      (item) => item.categories?.type === 'assembly'
-    )
-  }
-
   const formatOrderTime = (createdAt?: string) => {
     if (!createdAt) return '--:--'
 
     const date = new Date(createdAt)
     if (Number.isNaN(date.getTime())) return '--:--'
 
-    return date.toLocaleTimeString([], {
+    return date.toLocaleTimeString('ru-RU', {
       hour: '2-digit',
       minute: '2-digit',
     })
@@ -250,73 +266,72 @@ const KitchenMonitor = () => {
     const isReadyKitchenOrder = order.kitchen_status === 'ready'
 
     return (
-      <div
-        className={`order-card kitchen-card ${
-          isNewKitchenOrder ? 'order-card--new-attention' : ''
-        } ${isPreparingKitchenOrder ? 'order-card--preparing' : ''} ${
-          isReadyKitchenOrder ? 'order-card--ready' : ''
+      <article
+        className={`kitchen-order-card ${
+          isNewKitchenOrder ? 'is-new' : ''
+        } ${isPreparingKitchenOrder ? 'is-preparing' : ''} ${
+          isReadyKitchenOrder ? 'is-ready' : ''
         }`}
         key={order.id}
       >
-        <div className='order-card__header'>
+        <div className='kitchen-order-card__top'>
           <div>
-            <h2>Заказ №{getDaySequence(order)}</h2>
-            <p className='order-card__time'>
-              Время: {formatOrderTime(order.created_at)}
-            </p>
+            <span className='kitchen-order-card__small'>Заказ</span>
+            <h2>№{getDaySequence(order)}</h2>
+            <p>Время: {formatOrderTime(order.created_at)}</p>
           </div>
 
-          <div className='badge-row'>
-            {isNewKitchenOrder && (
-              <span className='status-badge new'>Новый</span>
-            )}
+          <div className='kitchen-badges'>
+            {isNewKitchenOrder && <span className='kitchen-badge new'>Новый</span>}
             {isPreparingKitchenOrder && (
-              <span className='status-badge preparing'>Готовится</span>
+              <span className='kitchen-badge preparing'>Готовится</span>
             )}
             {isReadyKitchenOrder && (
-              <span className='status-badge ready'>Готово</span>
+              <span className='kitchen-badge ready'>Готово</span>
             )}
             {hasAssembly && (
-              <span className='status-badge waiting'>Есть сборка</span>
+              <span className='kitchen-badge assembly'>Сборка</span>
             )}
           </div>
         </div>
 
-        <div className='order-meta'>
-          <p>
-            <strong>Статус кухни:</strong> {getKitchenStatusLabel(order)}
-          </p>
-          <p>
-            <strong>Переход в сборку:</strong> {getAssemblyFlowLabel(order)}
-          </p>
+        <div className='kitchen-meta-grid'>
+          <div>
+            <span>Статус кухни</span>
+            <strong>{getKitchenStatusLabel(order)}</strong>
+          </div>
+
+          <div>
+            <span>Далее</span>
+            <strong>{getAssemblyFlowLabel(order)}</strong>
+          </div>
         </div>
 
-        {!!kitchenItems.length && (
-          <div className='item-group kitchen'>
-            <div className='item-group__title'>Позиции кухни</div>
-            <div className='order-items'>
-              {kitchenItems.map((item, index) => (
-                <div
-                  key={`${order.id}-k-${item.id}-${index}`}
-                  className={`order-item-line kitchen-item-line ${
-                    isReadyKitchenOrder ? 'done' : ''
-                  }`}
-                >
-                  <span>{item.title}</span>
-                  <strong>x{item.quantity || 1}</strong>
-                </div>
-              ))}
-            </div>
+        <div className='kitchen-items-box'>
+          <div className='kitchen-items-box__title'>Позиции кухни</div>
+
+          <div className='kitchen-items-list'>
+            {kitchenItems.map((item, index) => (
+              <div
+                key={`${order.id}-k-${item.id}-${index}`}
+                className={`kitchen-item-line ${
+                  isReadyKitchenOrder ? 'done' : ''
+                }`}
+              >
+                <span>{item.title}</span>
+                <strong>x{item.quantity || 1}</strong>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
 
-        {order.comment && <div className='comment-box'>💬 {order.comment}</div>}
+        {order.comment && <div className='kitchen-comment'>💬 {order.comment}</div>}
 
-        <div className='action-row'>
+        <div className='kitchen-actions'>
           {isNewKitchenOrder && (
             <button
               type='button'
-              className='primary-btn'
+              className='kitchen-btn kitchen-btn--primary'
               onClick={() => handleKitchenStart(order)}
             >
               Принять
@@ -326,7 +341,7 @@ const KitchenMonitor = () => {
           {isPreparingKitchenOrder && (
             <button
               type='button'
-              className='success-btn'
+              className='kitchen-btn kitchen-btn--success'
               onClick={() => handleKitchenReady(order)}
             >
               Готово
@@ -334,78 +349,98 @@ const KitchenMonitor = () => {
           )}
 
           {isReadyKitchenOrder && (
-            <button type='button' className='ready-btn' disabled>
+            <button type='button' className='kitchen-btn kitchen-btn--ready' disabled>
               Кухня завершила
             </button>
           )}
         </div>
-      </div>
+      </article>
     )
   }
 
   return (
-    <div className='monitor-page kitchen-theme'>
-      <div className='page-header'>
-        <div>
-          <h1>Монитор кухни</h1>
-          <p>На кухне отображаются только позиции, относящиеся к кухне</p>
+    <div className='kitchen-monitor-page'>
+      <header className='kitchen-header'>
+        <div className='kitchen-brand'>
+          <div className='kitchen-logo'>🌯</div>
+          <div>
+            <h1>Монитор кухни</h1>
+            <p>БУРРИТОС • Мексиканская кухня</p>
+          </div>
         </div>
-      </div>
 
-      {error && <div className='error-box'>{error}</div>}
+        <div className='kitchen-header-stats'>
+          <div>
+            <span>Новые</span>
+            <strong>{newOrders.length}</strong>
+          </div>
 
-      <div className='monitor-columns three-columns'>
-        <div className='monitor-column'>
-          <div className='column-title new-col'>
+          <div>
+            <span>В работе</span>
+            <strong>{preparingOrders.length}</strong>
+          </div>
+
+          <div>
+            <span>Готово</span>
+            <strong>{readyOrders.length}</strong>
+          </div>
+        </div>
+      </header>
+
+      {error && <div className='kitchen-error'>{error}</div>}
+
+      <main className='kitchen-columns'>
+        <section className='kitchen-column'>
+          <div className='kitchen-column-title new'>
             <h3>Новые</h3>
             <span>{newOrders.length}</span>
           </div>
 
-          <div className='orders-stack'>
+          <div className='kitchen-orders-stack'>
             {loading ? (
-              <div className='empty-box'>Загрузка...</div>
+              <div className='kitchen-empty'>Загрузка...</div>
             ) : newOrders.length === 0 ? (
-              <div className='empty-box'>Новых заказов нет</div>
+              <div className='kitchen-empty'>Новых заказов нет</div>
             ) : (
               newOrders.map(renderOrderCard)
             )}
           </div>
-        </div>
+        </section>
 
-        <div className='monitor-column'>
-          <div className='column-title preparing-col'>
+        <section className='kitchen-column'>
+          <div className='kitchen-column-title preparing'>
             <h3>Готовятся</h3>
             <span>{preparingOrders.length}</span>
           </div>
 
-          <div className='orders-stack'>
+          <div className='kitchen-orders-stack'>
             {loading ? (
-              <div className='empty-box'>Загрузка...</div>
+              <div className='kitchen-empty'>Загрузка...</div>
             ) : preparingOrders.length === 0 ? (
-              <div className='empty-box'>Заказов в работе нет</div>
+              <div className='kitchen-empty'>Заказов в работе нет</div>
             ) : (
               preparingOrders.map(renderOrderCard)
             )}
           </div>
-        </div>
+        </section>
 
-        <div className='monitor-column'>
-          <div className='column-title ready-col'>
+        <section className='kitchen-column'>
+          <div className='kitchen-column-title ready'>
             <h3>Готово</h3>
             <span>{readyOrders.length}</span>
           </div>
 
-          <div className='orders-stack'>
+          <div className='kitchen-orders-stack'>
             {loading ? (
-              <div className='empty-box'>Загрузка...</div>
+              <div className='kitchen-empty'>Загрузка...</div>
             ) : readyOrders.length === 0 ? (
-              <div className='empty-box'>Готовых заказов нет</div>
+              <div className='kitchen-empty'>Готовых заказов нет</div>
             ) : (
               readyOrders.map(renderOrderCard)
             )}
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   )
 }
