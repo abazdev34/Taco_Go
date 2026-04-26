@@ -1,11 +1,61 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   createCategory,
   deleteCategory,
   fetchCategories,
   updateCategory,
 } from "../../api/categories";
+import { supabase } from "../../lib/supabase";
 import { ICategoryRow, TCategoryType } from "../../types/menu";
+
+const BUCKET = "category-images";
+
+function normalizeImageUrl(value?: string | null) {
+  if (!value) return "";
+
+  if (value.startsWith("http")) {
+    return value;
+  }
+
+  const cleanPath = value.replace(/^\/+/, "");
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
+
+  return data.publicUrl;
+}
+
+function ImagePreview({
+  src,
+  alt,
+  style,
+}: {
+  src?: string | null;
+  alt: string;
+  style: CSSProperties;
+}) {
+  const url = normalizeImageUrl(src);
+
+  if (!url) {
+    return <div style={{ ...style, ...styles.noImage }}>Нет фото</div>;
+  }
+
+  return (
+    <img
+      src={url}
+      alt={alt}
+      style={style}
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
 
 function CategoriesPage() {
   const [categories, setCategories] = useState<ICategoryRow[]>([]);
@@ -13,6 +63,7 @@ function CategoriesPage() {
   const [sortOrder, setSortOrder] = useState("0");
   const [type, setType] = useState<TCategoryType>("kitchen");
   const [image, setImage] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -37,7 +88,7 @@ function CategoriesPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const resetForm = () => {
@@ -45,14 +96,38 @@ function CategoriesPage() {
     setSortOrder("0");
     setType("kitchen");
     setImage("");
+    setImageFile(null);
     setEditingId(null);
     setErrorMessage("");
+  };
+
+  const uploadImage = async () => {
+    if (!imageFile) return image || null;
+
+    const ext = imageFile.name.split(".").pop() || "jpg";
+    const fileName = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    const filePath = `categories/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(filePath, imageFile, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: imageFile.type || "image/jpeg",
+      });
+
+    if (error) {
+      throw new Error(error.message || "Не удалось загрузить изображение");
+    }
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+
+    return data.publicUrl;
   };
 
   const handleSubmit = async () => {
     const trimmedName = name.trim();
     const numericSortOrder = Number(sortOrder || 0);
-    const trimmedImage = image.trim();
 
     if (!trimmedName) {
       setErrorMessage("Введите название категории");
@@ -68,11 +143,13 @@ function CategoriesPage() {
     setErrorMessage("");
 
     try {
+      const uploadedImageUrl = await uploadImage();
+
       const payload = {
         name: trimmedName,
         sort_order: numericSortOrder,
         type,
-        image: trimmedImage || null,
+        image: uploadedImageUrl,
       };
 
       if (editingId) {
@@ -96,7 +173,8 @@ function CategoriesPage() {
     setName(item.name || "");
     setSortOrder(String(item.sort_order ?? 0));
     setType((item.type as TCategoryType) ?? "kitchen");
-    setImage(item.image ?? "");
+    setImage(normalizeImageUrl(item.image));
+    setImageFile(null);
     setErrorMessage("");
   };
 
@@ -141,6 +219,10 @@ function CategoriesPage() {
     (item) => item.type === "assembly"
   );
 
+  const imagePreview = imageFile
+    ? URL.createObjectURL(imageFile)
+    : normalizeImageUrl(image);
+
   const renderSection = (
     title: string,
     items: ICategoryRow[],
@@ -158,9 +240,7 @@ function CategoriesPage() {
               <div key={item.id} style={styles.item}>
                 <div style={styles.itemLeft}>
                   <div style={styles.badges}>
-                    <span style={styles.badge}>
-                      {getTypeLabel(item.type)}
-                    </span>
+                    <span style={styles.badge}>{getTypeLabel(item.type)}</span>
                     <span style={styles.sortBadge}>
                       Сортировка: {item.sort_order ?? 0}
                     </span>
@@ -168,13 +248,11 @@ function CategoriesPage() {
 
                   <div style={styles.itemTitle}>{item.name}</div>
 
-                  {item.image && (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      style={styles.imagePreview}
-                    />
-                  )}
+                  <ImagePreview
+                    src={item.image}
+                    alt={item.name}
+                    style={styles.imagePreview}
+                  />
                 </div>
 
                 <div style={styles.actions}>
@@ -234,14 +312,25 @@ function CategoriesPage() {
         </div>
 
         <div style={styles.field}>
-          <label style={styles.label}>URL изображения</label>
+          <label style={styles.label}>Сүрөт жүктөө</label>
           <input
             style={styles.input}
-            placeholder="Введите ссылку на изображение"
-            value={image}
-            onChange={(e) => setImage(e.target.value)}
+            type="file"
+            accept="image/*"
             disabled={saving}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setImageFile(file);
+            }}
           />
+
+          {imagePreview && (
+            <ImagePreview
+              src={imagePreview}
+              alt="preview"
+              style={styles.bigImagePreview}
+            />
+          )}
         </div>
 
         <div style={styles.field}>
@@ -305,9 +394,7 @@ function CategoriesPage() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: {
-    padding: "20px",
-  },
+  page: { padding: "20px" },
   title: {
     marginTop: 0,
     marginBottom: "20px",
@@ -315,9 +402,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     color: "#111",
   },
-  section: {
-    marginTop: "24px",
-  },
+  section: { marginTop: "24px" },
   sectionTitle: {
     margin: "0 0 12px 0",
     fontSize: "22px",
@@ -333,15 +418,8 @@ const styles: Record<string, CSSProperties> = {
     padding: "18px",
     marginBottom: "24px",
   },
-  field: {
-    display: "grid",
-    gap: "8px",
-  },
-  label: {
-    fontSize: "14px",
-    fontWeight: 600,
-    color: "#333",
-  },
+  field: { display: "grid", gap: "8px" },
+  label: { fontSize: "14px", fontWeight: 600, color: "#333" },
   input: {
     padding: "12px 14px",
     borderRadius: "10px",
@@ -349,11 +427,22 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "15px",
     outline: "none",
   },
-  buttonRow: {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
+  bigImagePreview: {
+    width: "160px",
+    height: "120px",
+    objectFit: "cover",
+    borderRadius: "14px",
+    border: "1px solid #ddd",
   },
+  noImage: {
+    background: "#f3f4f6",
+    color: "#9ca3af",
+    display: "grid",
+    placeItems: "center",
+    fontSize: "12px",
+    fontWeight: 700,
+  },
+  buttonRow: { display: "flex", gap: "10px", flexWrap: "wrap" },
   button: {
     width: "fit-content",
     border: "none",
@@ -376,10 +465,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     fontSize: "14px",
   },
-  list: {
-    display: "grid",
-    gap: "12px",
-  },
+  list: { display: "grid", gap: "12px" },
   emptyBox: {
     background: "#fff",
     border: "1px solid #eaeaea",
@@ -406,16 +492,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: "14px",
     padding: "16px",
   },
-  itemLeft: {
-    display: "grid",
-    gap: "8px",
-    flex: 1,
-  },
-  badges: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
+  itemLeft: { display: "grid", gap: "8px", flex: 1 },
+  badges: { display: "flex", gap: "8px", flexWrap: "wrap" },
   badge: {
     display: "inline-flex",
     alignItems: "center",
@@ -436,11 +514,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "12px",
     fontWeight: 700,
   },
-  itemTitle: {
-    fontSize: "18px",
-    fontWeight: 700,
-    color: "#111",
-  },
+  itemTitle: { fontSize: "18px", fontWeight: 700, color: "#111" },
   imagePreview: {
     width: "72px",
     height: "72px",
@@ -449,11 +523,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #e5e7eb",
     marginTop: "4px",
   },
-  actions: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
+  actions: { display: "flex", gap: "8px", flexWrap: "wrap" },
   editButton: {
     border: "1px solid #ccc",
     background: "#fff",

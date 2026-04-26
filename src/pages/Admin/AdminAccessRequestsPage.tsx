@@ -6,7 +6,7 @@ type Profile = {
   id: string;
   email: string;
   role: string | null;
-  status: string;
+  status: string | null;
 };
 
 const roles = [
@@ -36,7 +36,6 @@ function AdminAccessRequestsPage() {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, email, role, status")
-        .eq("status", "pending")
         .order("email", { ascending: true });
 
       if (error) {
@@ -48,7 +47,7 @@ function AdminAccessRequestsPage() {
       setUsers(data || []);
     } catch (error: any) {
       setMessageType("error");
-      setMessage(error?.message || "Не удалось загрузить заявки");
+      setMessage(error?.message || "Не удалось загрузить пользователей");
     } finally {
       setLoading(false);
     }
@@ -61,31 +60,9 @@ function AdminAccessRequestsPage() {
       .channel("profiles-live")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "profiles" },
-        (payload) => {
-          const newUser = payload.new as Profile;
-
-          if (newUser.status === "pending") {
-            setUsers((prev) => {
-              if (prev.find((u) => u.id === newUser.id)) return prev;
-              return [newUser, ...prev];
-            });
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        (payload) => {
-          const updated = payload.new as Profile;
-
-          if (updated.status !== "pending") {
-            setUsers((prev) => prev.filter((u) => u.id !== updated.id));
-          } else {
-            setUsers((prev) =>
-              prev.map((user) => (user.id === updated.id ? updated : user))
-            );
-          }
+        { event: "*", schema: "public", table: "profiles" },
+        () => {
+          void loadUsers();
         }
       )
       .subscribe();
@@ -95,10 +72,10 @@ function AdminAccessRequestsPage() {
     };
   }, []);
 
-  const approveUser = async (id: string) => {
+  const updateUser = async (id: string, status: string) => {
     const role = selectedRoles[id];
 
-    if (!role) {
+    if (status === "approved" && !role) {
       setMessageType("error");
       setMessage("Сначала выберите роль.");
       return;
@@ -108,56 +85,33 @@ function AdminAccessRequestsPage() {
       setBusyId(id);
       setMessage("");
 
+      const updateData =
+        status === "approved"
+          ? { status, role, approved_at: new Date().toISOString() }
+          : { status };
+
       const { error } = await supabase
         .from("profiles")
-        .update({
-          status: "approved",
-          role,
-          approved_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", id);
 
       if (error) {
         setMessageType("error");
-        setMessage(`Ошибка одобрения: ${error.message}`);
+        setMessage(`Ошибка: ${error.message}`);
         return;
       }
 
-      setUsers((prev) => prev.filter((u) => u.id !== id));
       setMessageType("success");
-      setMessage("Заявка успешно одобрена.");
+      setMessage(
+        status === "approved"
+          ? "Пользователь одобрен."
+          : "Пользователь отклонён."
+      );
+
+      await loadUsers();
     } catch (error: any) {
       setMessageType("error");
-      setMessage(error?.message || "Не удалось одобрить заявку");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const rejectUser = async (id: string) => {
-    try {
-      setBusyId(id);
-      setMessage("");
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          status: "rejected",
-        })
-        .eq("id", id);
-
-      if (error) {
-        setMessageType("error");
-        setMessage(`Ошибка отклонения: ${error.message}`);
-        return;
-      }
-
-      setUsers((prev) => prev.filter((u) => u.id !== id));
-      setMessageType("success");
-      setMessage("Заявка отклонена.");
-    } catch (error: any) {
-      setMessageType("error");
-      setMessage(error?.message || "Не удалось отклонить заявку");
+      setMessage(error?.message || "Не удалось обновить пользователя");
     } finally {
       setBusyId(null);
     }
@@ -167,8 +121,8 @@ function AdminAccessRequestsPage() {
     <div className="admin-page-card">
       <div className="admin-page-header">
         <div>
-          <h1>Заявки на доступ</h1>
-          <p>Одобрение новых сотрудников и назначение ролей</p>
+          <h1>Пользователи</h1>
+          <p>Список сотрудников, заявки и назначение ролей</p>
         </div>
       </div>
 
@@ -181,11 +135,15 @@ function AdminAccessRequestsPage() {
       {loading ? (
         <div className="admin-message admin-message--info">Жүктөлүүдө...</div>
       ) : users.length === 0 ? (
-        <div className="admin-message admin-message--info">Нет заявок</div>
+        <div className="admin-message admin-message--info">
+          Пользователи не найдены
+        </div>
       ) : (
         <div className="admin-requests-grid">
           {users.map((user) => {
             const isBusy = busyId === user.id;
+            const currentStatus = user.status || "approved";
+            const currentRole = selectedRoles[user.id] || user.role || "";
 
             return (
               <div key={user.id} className="admin-request-card">
@@ -195,16 +153,23 @@ function AdminAccessRequestsPage() {
                     <strong>{user.email}</strong>
                   </div>
 
-                  <span className="admin-badge admin-badge--pending">
-                    Ожидает
+                  <span
+                    className={`admin-badge admin-badge--${currentStatus}`}
+                  >
+                    {currentStatus === "pending"
+                      ? "Ожидает"
+                      : currentStatus === "approved"
+                      ? "Одобрен"
+                      : "Отклонён"}
                   </span>
                 </div>
 
                 <div className="admin-request-card__body">
                   <label className="admin-field">
                     <span>Роль сотрудника</span>
+
                     <select
-                      value={selectedRoles[user.id] || ""}
+                      value={currentRole}
                       disabled={isBusy}
                       onChange={(e) =>
                         setSelectedRoles((prev) => ({
@@ -214,6 +179,7 @@ function AdminAccessRequestsPage() {
                       }
                     >
                       <option value="">Выберите роль</option>
+
                       {roles.map((role) => (
                         <option key={role.value} value={role.value}>
                           {role.label}
@@ -228,16 +194,16 @@ function AdminAccessRequestsPage() {
                     type="button"
                     className="admin-action-btn admin-action-btn--approve"
                     disabled={isBusy}
-                    onClick={() => approveUser(user.id)}
+                    onClick={() => updateUser(user.id, "approved")}
                   >
-                    {isBusy ? "..." : "Одобрить"}
+                    {isBusy ? "..." : "Одобрить / Сохранить"}
                   </button>
 
                   <button
                     type="button"
                     className="admin-action-btn admin-action-btn--reject"
                     disabled={isBusy}
-                    onClick={() => rejectUser(user.id)}
+                    onClick={() => updateUser(user.id, "rejected")}
                   >
                     {isBusy ? "..." : "Отклонить"}
                   </button>

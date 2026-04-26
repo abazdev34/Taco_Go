@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
-import { fetchMenuItems } from '../../api/menuItems'
-import { createOrder, updateCashierOrder } from '../../api/orders'
-import { useCart } from '../../context/CartContext'
-import { TOrderPlace, TPaymentMethod } from '../../types/order'
-import { formatPrice } from '../../utils/currency'
-import { buildOrderComment } from '../../utils/orderHelpers'
-import './ClientMonitor.scss'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { fetchMenuItems } from "../../api/menuItems";
+import { createOrder, updateCashierOrder } from "../../api/orders";
+import { useCart } from "../../context/CartContext";
+import { TOrderPlace, TPaymentMethod } from "../../types/order";
+import { formatPrice } from "../../utils/currency";
+import { buildOrderComment } from "../../utils/orderHelpers";
+import "./ClientMonitor.scss";
 
 const DEFAULT_IMAGE =
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80'
+  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=700&q=70";
 
 function ClientMonitor() {
+  const navigate = useNavigate();
+
   const {
     cart,
     cartOpen,
@@ -20,91 +23,132 @@ function ClientMonitor() {
     clearCart,
     totalItems,
     totalSum,
-  } = useCart()
+  } = useCart();
 
-  const [menu, setMenu] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [activeCategory, setActiveCategory] = useState('all')
-  const [orderMode, setOrderMode] = useState<TOrderPlace>('hall')
-  const [comment, setComment] = useState('')
-  const [successOpen, setSuccessOpen] = useState(false)
-  const [lastOrderNumber, setLastOrderNumber] = useState('001')
+  const categoryRef = useRef<HTMLDivElement | null>(null);
 
-  const paymentMethod: TPaymentMethod = 'online'
+  const [menu, setMenu] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [orderMode, setOrderMode] = useState<TOrderPlace>("hall");
+  const [comment, setComment] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [lastOrderNumber, setLastOrderNumber] = useState("001");
+
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [selectedQty, setSelectedQty] = useState(1);
+
+  const paymentMethod: TPaymentMethod = "online";
 
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
 
     const load = async () => {
       try {
-        setLoading(true)
-        setError('')
+        setLoading(true);
+        setError("");
 
-        const data = await fetchMenuItems()
+        const data = await fetchMenuItems(true);
 
-        if (!mounted) return
-        setMenu(Array.isArray(data) ? data : [])
+        if (!mounted) return;
+        setMenu(Array.isArray(data) ? data : []);
       } catch (e: any) {
-        if (!mounted) return
-        setError(e?.message || 'Не удалось загрузить меню')
+        if (!mounted) return;
+        setError(e?.message || "Не удалось загрузить меню");
       } finally {
-        if (mounted) setLoading(false)
+        if (mounted) setLoading(false);
       }
-    }
+    };
 
-    void load()
+    void load();
 
     return () => {
-      mounted = false
-    }
-  }, [])
+      mounted = false;
+    };
+  }, []);
 
   const categories = useMemo(() => {
-    const map = new Map<string, any>()
+    const map = new Map<string, any>();
 
     for (const item of menu) {
-      const cat = item.categories
-      if (!cat) continue
+      const cat = item.categories;
+      if (!cat) continue;
 
       if (!map.has(cat.id)) {
         map.set(cat.id, {
           id: cat.id,
           name: cat.name,
+          image: cat.image || cat.image_url || null,
           sort: cat.sort_order || 0,
-        })
+        });
       }
     }
 
     return [
-      { id: 'all', name: 'Все' },
+      { id: "all", name: "Все", image: null },
       ...Array.from(map.values()).sort((a, b) => a.sort - b.sort),
-    ]
-  }, [menu])
+    ];
+  }, [menu]);
 
   const filtered = useMemo(() => {
-    if (activeCategory === 'all') return menu
-    return menu.filter(item => item.categories?.id === activeCategory)
-  }, [menu, activeCategory])
+    if (activeCategory === "all") return menu;
+    return menu.filter((item) => item.categories?.id === activeCategory);
+  }, [menu, activeCategory]);
+
+  const getItemImage = (item: any) => {
+    return item?.image_url || item?.image || DEFAULT_IMAGE;
+  };
+
+  const scrollCategories = (direction: "left" | "right") => {
+    categoryRef.current?.scrollBy({
+      left: direction === "left" ? -280 : 280,
+      behavior: "smooth",
+    });
+  };
+
+  const openItemModal = (item: any) => {
+    setSelectedItem(item);
+    setSelectedQty(1);
+  };
+
+  const closeItemModal = () => {
+    setSelectedItem(null);
+    setSelectedQty(1);
+  };
+
+  const addSelectedToCart = () => {
+    if (!selectedItem) return;
+
+    for (let i = 0; i < selectedQty; i += 1) {
+      addToCart(selectedItem);
+    }
+
+    closeItemModal();
+  };
 
   const handleCreateOrder = async () => {
-    if (!cart.length || submitting) return
+    if (!cart.length || submitting) return;
 
     try {
-      setSubmitting(true)
+      setSubmitting(true);
 
-      const hasKitchen = cart.some((item: any) => item.categories?.type !== 'assembly')
-      const hasAssembly = cart.some((item: any) => item.categories?.type === 'assembly')
+      const hasKitchen = cart.some(
+        (item: any) => item.categories?.type !== "assembly"
+      );
+      const hasAssembly = cart.some(
+        (item: any) => item.categories?.type === "assembly"
+      );
 
-      const nextStatus = hasKitchen ? 'new' : 'preparing'
-      const nextCashierStatus = hasKitchen ? 'new' : 'assembly'
-      const nextKitchenStatus = hasKitchen ? 'new' : 'skipped'
+      const nextStatus = hasKitchen ? "new" : "preparing";
+      const nextCashierStatus = hasKitchen ? "new" : "assembly";
+      const nextKitchenStatus = hasKitchen ? "new" : "skipped";
       const nextAssemblyStatus = hasAssembly
         ? hasKitchen
-          ? 'waiting'
-          : 'new'
-        : 'skipped'
+          ? "waiting"
+          : "new"
+        : "skipped";
 
       const savedOrder = await createOrder({
         items: cart,
@@ -114,14 +158,14 @@ function ClientMonitor() {
           paymentMethod,
           comment,
         }),
-        source: 'client',
+        source: "client",
         status: nextStatus as any,
-        customer_name: 'Гость',
+        customer_name: "Гость",
         table_number: null,
         order_place: orderMode,
         payment_method: paymentMethod,
         assembly_progress: [],
-      })
+      });
 
       await updateCashierOrder(savedOrder.id, {
         status: nextStatus as any,
@@ -133,109 +177,208 @@ function ClientMonitor() {
         kitchen_status: nextKitchenStatus as any,
         assembly_status: nextAssemblyStatus as any,
         assembly_progress: [],
-      })
+      });
 
-      setLastOrderNumber(String(savedOrder.daily_order_number || 0).padStart(3, '0'))
-      clearCart()
-      setComment('')
-      setOrderMode('hall')
-      setCartOpen(false)
-      setSuccessOpen(true)
+      setLastOrderNumber(
+        String(savedOrder.daily_order_number || 0).padStart(3, "0")
+      );
+      clearCart();
+      setComment("");
+      setOrderMode("hall");
+      setCartOpen(false);
+      setSuccessOpen(true);
     } catch (e: any) {
-      console.error('CLIENT ORDER ERROR:', e)
-      alert(e?.message || 'Не удалось оформить заказ')
+      console.error("CLIENT ORDER ERROR:", e);
+      alert(e?.message || "Не удалось оформить заказ");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   if (successOpen) {
     return (
-      <div className='client-success-page'>
-        <div className='client-success-card'>
-          <div className='client-success-check'>✓</div>
+      <div className="client-success-page">
+        <div className="client-success-card">
+          <div className="client-success-check">✓</div>
           <h1>Заказ принят!</h1>
           <p>Ваш номер заказа</p>
-          <strong className='client-success-number'>{lastOrderNumber}</strong>
+          <strong>{lastOrderNumber}</strong>
           <span>Ожидайте, заказ уже передан в работу</span>
-
-          <button type='button' onClick={() => setSuccessOpen(false)}>
+          <button type="button" onClick={() => setSuccessOpen(false)}>
             Новый заказ
           </button>
         </div>
       </div>
-    )
+    );
   }
 
-  if (loading) return <div className='client-empty'>Загрузка меню...</div>
-  if (error) return <div className='client-empty'>{error}</div>
+  if (loading) {
+    return (
+      <div className="client-loading">
+        <div className="client-loading__bar" />
+        <p>Загрузка меню...</p>
+      </div>
+    );
+  }
+
+  if (error) return <div className="client-empty">{error}</div>;
 
   return (
-    <div className='client-page'>
-      <div className='client-hero'>
-        <span>Mexican Grill</span>
-        <h1>БУРРИТОС</h1>
-        <p>Выберите блюда и оформите заказ</p>
-      </div>
+    <div className="client-page">
+      <button
+        type="button"
+        className="client-home-btn"
+        onClick={() => navigate("/")}
+      >
+        🏠
+      </button>
 
-      <div className='client-categories-horizontal'>
-        {categories.map(cat => (
-          <button
-            key={cat.id}
-            type='button'
-            className={activeCategory === cat.id ? 'active' : ''}
-            onClick={() => setActiveCategory(cat.id)}
+      <section className="client-category-section">
+        <button
+          type="button"
+          className="client-category-arrow client-category-arrow--left"
+          onClick={() => scrollCategories("left")}
+        >
+          ‹
+        </button>
+
+        <div ref={categoryRef} className="client-categories-slider">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              className={activeCategory === cat.id ? "active" : ""}
+              onClick={() => setActiveCategory(cat.id)}
+            >
+              <span className="client-category-img">
+                {cat.image ? <img src={cat.image} alt={cat.name} /> : "🌯"}
+              </span>
+              <span className="client-category-name">{cat.name}</span>
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className="client-category-arrow client-category-arrow--right"
+          onClick={() => scrollCategories("right")}
+        >
+          ›
+        </button>
+      </section>
+
+      <main className="client-menu-grid">
+        {filtered.map((item) => (
+          <article
+            key={item.id}
+            className="client-card"
+            onClick={() => openItemModal(item)}
           >
-            {cat.name}
-          </button>
-        ))}
-      </div>
+            <div className="client-card__image">
+              <img
+                src={getItemImage(item)}
+                alt={item.title}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
 
-      <div className='client-menu-grid'>
-        {filtered.map(item => (
-          <div key={item.id} className='client-card'>
-            <img
-              src={item.image_url || item.image || DEFAULT_IMAGE}
-              alt={item.title}
-              loading='lazy'
-              decoding='async'
-            />
-
-            <div className='client-card__body'>
+            <div className="client-card__body">
               <h3>{item.title}</h3>
-              <p>{item.description || 'Описание блюда пока не добавлено'}</p>
+              <p>{item.description || "Сочное блюдо из нашего меню"}</p>
 
-              <div className='client-card__bottom'>
-                <b>{formatPrice(Number(item.price || 0))}</b>
-
-                <button type='button' onClick={() => addToCart(item)}>
+              <div className="client-card__bottom">
+                <strong>{formatPrice(Number(item.price || 0))}</strong>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openItemModal(item);
+                  }}
+                >
                   Добавить
                 </button>
               </div>
             </div>
-          </div>
+          </article>
         ))}
-      </div>
+      </main>
 
       {totalItems > 0 && (
         <button
-          type='button'
-          className='client-cart-badge'
+          type="button"
+          className="client-cart-badge"
           onClick={() => setCartOpen(true)}
         >
-          🛒 {totalItems} • {formatPrice(totalSum)}
+          <span>Корзина</span>
+          <b>{totalItems}</b>
+          <strong>{formatPrice(totalSum)}</strong>
         </button>
       )}
 
+      {selectedItem && (
+        <div className="client-item-modal">
+          <div className="client-item-modal__overlay" onClick={closeItemModal} />
+
+          <div className="client-item-modal__card">
+            <button
+              type="button"
+              className="client-item-modal__close"
+              onClick={closeItemModal}
+            >
+              ✕
+            </button>
+
+            <div className="client-item-modal__image">
+              <img src={getItemImage(selectedItem)} alt={selectedItem.title} />
+            </div>
+
+            <div className="client-item-modal__content">
+              <h2>{selectedItem.title}</h2>
+              <p>{selectedItem.description || "Сочное блюдо из нашего меню"}</p>
+
+              <div className="client-item-modal__price">
+                {formatPrice(Number(selectedItem.price || 0))}
+              </div>
+
+              <div className="client-item-modal__qty">
+                <button
+                  type="button"
+                  onClick={() => setSelectedQty((prev) => Math.max(1, prev - 1))}
+                >
+                  −
+                </button>
+                <b>{selectedQty}</b>
+                <button
+                  type="button"
+                  onClick={() => setSelectedQty((prev) => prev + 1)}
+                >
+                  +
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="client-item-modal__add"
+                onClick={addSelectedToCart}
+              >
+                Добавить •{" "}
+                {formatPrice(Number(selectedItem.price || 0) * selectedQty)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {cartOpen && (
-        <div className='client-cart-drawer'>
+        <div className="client-cart-drawer">
           <div
-            className='client-cart-drawer__overlay'
+            className="client-cart-drawer__overlay"
             onClick={() => setCartOpen(false)}
           />
 
-          <aside className='client-cart-drawer__panel'>
-            <div className='client-cart-drawer__head'>
+          <aside className="client-cart-drawer__panel">
+            <div className="client-cart-drawer__head">
               <div>
                 <h2>Корзина</h2>
                 <span>
@@ -243,86 +386,95 @@ function ClientMonitor() {
                 </span>
               </div>
 
-              <button type='button' onClick={() => setCartOpen(false)}>
+              <button type="button" onClick={() => setCartOpen(false)}>
                 ✕
               </button>
             </div>
 
             {cart.length === 0 ? (
-              <div className='client-cart-empty'>Корзина пустая</div>
+              <div className="client-cart-empty">
+                <strong>Корзина пустая</strong>
+                <span>Добавьте блюда из меню</span>
+              </div>
             ) : (
-              <div className='client-cart-list'>
+              <div className="client-cart-list">
                 {cart.map((item: any) => (
-                  <div key={item.id} className='client-cart-item'>
-                    <div>
+                  <div key={item.id} className="client-cart-item">
+                    <img
+                      className="client-cart-item__image"
+                      src={getItemImage(item)}
+                      alt={item.title}
+                    />
+
+                    <div className="client-cart-item__content">
                       <strong>{item.title}</strong>
                       <span>{formatPrice(Number(item.price || 0))}</span>
-                    </div>
 
-                    <div className='client-cart-qty'>
-                      <button type='button' onClick={() => removeFromCart(item)}>
-                        −
-                      </button>
-                      <b>{item.quantity || 1}</b>
-                      <button type='button' onClick={() => addToCart(item)}>
-                        +
-                      </button>
+                      <div className="client-cart-qty">
+                        <button type="button" onClick={() => removeFromCart(item)}>
+                          −
+                        </button>
+                        <b>{item.quantity || 1}</b>
+                        <button type="button" onClick={() => addToCart(item)}>
+                          +
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className='client-settings-group'>
-              <div className='client-group-title'>Формат заказа</div>
+            <div className="client-settings-group">
+              <div className="client-group-title">Формат заказа</div>
 
-              <div className='client-segments'>
+              <div className="client-segments">
                 <button
-                  type='button'
-                  className={orderMode === 'hall' ? 'active' : ''}
-                  onClick={() => setOrderMode('hall')}
+                  type="button"
+                  className={orderMode === "hall" ? "active" : ""}
+                  onClick={() => setOrderMode("hall")}
                 >
                   Здесь
                 </button>
 
                 <button
-                  type='button'
-                  className={orderMode === 'takeaway' ? 'active' : ''}
-                  onClick={() => setOrderMode('takeaway')}
+                  type="button"
+                  className={orderMode === "takeaway" ? "active" : ""}
+                  onClick={() => setOrderMode("takeaway")}
                 >
                   С собой
                 </button>
               </div>
             </div>
 
-            <div className='client-comment-box'>
-              <div className='client-group-title'>Комментарий</div>
+            <div className="client-comment-box">
+              <div className="client-group-title">Комментарий</div>
               <textarea
-                className='client-comment'
-                placeholder='Напишите пожелания к заказу'
+                className="client-comment"
+                placeholder="Напишите пожелания к заказу"
                 value={comment}
-                onChange={e => setComment(e.currentTarget.value)}
+                onChange={(e) => setComment(e.currentTarget.value)}
                 rows={3}
               />
             </div>
 
-            <div className='client-cart-total'>
+            <div className="client-cart-total">
               <span>Итого</span>
               <strong>{formatPrice(totalSum)}</strong>
             </div>
 
             <button
-              type='button'
-              className='client-order-btn'
+              type="button"
+              className="client-order-btn"
               disabled={!cart.length || submitting}
               onClick={handleCreateOrder}
             >
-              {submitting ? 'Оформление...' : 'Оформить заказ'}
+              {submitting ? "Оформление..." : "Оформить заказ"}
             </button>
 
             <button
-              type='button'
-              className='client-clear-btn'
+              type="button"
+              className="client-clear-btn"
               onClick={clearCart}
               disabled={!cart.length || submitting}
             >
@@ -332,7 +484,7 @@ function ClientMonitor() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default ClientMonitor
+export default ClientMonitor;

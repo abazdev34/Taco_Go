@@ -35,7 +35,15 @@ function normalizeMenuItem(item: any) {
 function cleanPayload(payload: IMenuItemPayload) {
   const safePayload: Record<string, any> = {
     ...payload,
+
+    // 🔥 МААНИЛҮҮ FIX
+    title: payload.title || '',
+    description: payload.description || '', // ❗ NULL болбойт
+    price: Number(payload.price || 0),
+
     image: (payload as any).image || (payload as any).image_url || '',
+    is_active: payload.is_active ?? true,
+    sort_order: Number(payload.sort_order || 0),
   }
 
   delete safePayload.image_url
@@ -95,9 +103,11 @@ export async function fetchMenuItems(force = false) {
 }
 
 export async function createMenuItem(payload: IMenuItemPayload) {
+  const clean = cleanPayload(payload)
+
   const { data, error } = await supabase
     .from('menu_items')
-    .insert([cleanPayload(payload)])
+    .insert([clean])
     .select(MENU_ITEM_SELECT)
     .single()
 
@@ -108,9 +118,11 @@ export async function createMenuItem(payload: IMenuItemPayload) {
 }
 
 export async function updateMenuItem(id: string, payload: IMenuItemPayload) {
+  const clean = cleanPayload(payload)
+
   const { data, error } = await supabase
     .from('menu_items')
-    .update(cleanPayload(payload))
+    .update(clean)
     .eq('id', id)
     .select(MENU_ITEM_SELECT)
     .single()
@@ -122,7 +134,10 @@ export async function updateMenuItem(id: string, payload: IMenuItemPayload) {
 }
 
 export async function deleteMenuItem(id: string) {
-  const { error } = await supabase.from('menu_items').delete().eq('id', id)
+  const { error } = await supabase
+    .from('menu_items')
+    .delete()
+    .eq('id', id)
 
   if (error) throw new Error(error.message)
 

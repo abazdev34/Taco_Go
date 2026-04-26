@@ -34,16 +34,24 @@ function RegisterPage() {
         return;
       }
 
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: user.id,
-        email: normalizedEmail,
-        role: "client",
-        status: "pending",
-      });
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
 
-      if (profileError) {
-        alert(profileError.message || "Ошибка создания профиля");
-        return;
+      if (!existingProfile) {
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: user.id,
+          email: normalizedEmail,
+          role: "client",
+          status: "pending",
+        });
+
+        if (profileError) {
+          alert(profileError.message || "Ошибка создания профиля");
+          return;
+        }
       }
 
       navigate("/pending-approval", { replace: true });
@@ -66,6 +74,7 @@ function RegisterPage() {
             type="email"
             placeholder="Email"
             value={email}
+            disabled={loading}
             onChange={(e) => setEmail(e.target.value)}
           />
 
@@ -73,6 +82,7 @@ function RegisterPage() {
             type="password"
             placeholder="Пароль"
             value={password}
+            disabled={loading}
             onChange={(e) => setPassword(e.target.value)}
           />
 

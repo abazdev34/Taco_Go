@@ -1,98 +1,34 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import './LoginPage.scss'
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-function LoginPage() {
-  const { signIn, refreshProfile, profile } = useAuth()
-  const navigate = useNavigate()
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    try {
-      setLoading(true)
-
-      const normalizedEmail = email.trim().toLowerCase()
-      const { error } = await signIn(normalizedEmail, password)
-
-      if (error) {
-        alert(error)
-        return
-      }
-
-      await refreshProfile()
-
-      // Небольшая пауза, чтобы profile успел обновиться
-      setTimeout(() => {
-        if (normalizedEmail === 'burritos@gmail.com') {
-          navigate('/admin', { replace: true })
-          return
-        }
-
-        switch (profile?.role) {
-          case 'admin':
-            navigate('/admin', { replace: true })
-            break
-          case 'cashier':
-            navigate('/cashier', { replace: true })
-            break
-          case 'kitchen':
-            navigate('/kitchen', { replace: true })
-            break
-          case 'hall':
-            navigate('/monitor', { replace: true })
-            break
-          case 'assembly':
-            navigate('/assembly', { replace: true })
-            break
-          case 'history':
-            navigate('/history', { replace: true })
-            break
-          default:
-            navigate('/client', { replace: true })
-        }
-      }, 300)
-    } catch (err) {
-      console.error(err)
-      alert('Ошибка входа')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className='login-page'>
-      <div className='login-card'>
-        <h1 className='login-title'>TacoGo</h1>
-        <p className='login-subtitle'>Вход в систему</p>
-
-        <form onSubmit={handleLogin} className='login-form'>
-          <input
-            type='email'
-            placeholder='Email'
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-
-          <input
-            type='password'
-            placeholder='Пароль'
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
-
-          <button type='submit' disabled={loading}>
-            {loading ? 'Загрузка...' : 'Войти'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
+function normalize(value: unknown) {
+  return String(value || "").trim().toLowerCase();
 }
 
-export default LoginPage
+function HomeRedirect() {
+  const { user, profile, loading } = useAuth();
+
+  if (loading) return <div>Загрузка...</div>;
+
+  if (!user) return <Navigate to="/client" replace />;
+
+  if (!profile) return <Navigate to="/pending-approval" replace />;
+
+  const role = normalize(profile.role);
+  const status = normalize(profile.status);
+
+  if (status !== "approved") {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
+  if (role === "admin") return <Navigate to="/admin" replace />;
+  if (role === "cashier") return <Navigate to="/cashier" replace />;
+  if (role === "kitchen") return <Navigate to="/kitchen" replace />;
+  if (role === "hall") return <Navigate to="/monitor" replace />;
+  if (role === "assembly") return <Navigate to="/assembly" replace />;
+  if (role === "history") return <Navigate to="/history" replace />;
+
+  return <Navigate to="/pending-approval" replace />;
+}
+
+export default HomeRedirect;

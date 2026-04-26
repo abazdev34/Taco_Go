@@ -1008,7 +1008,7 @@ ${itemsSummary
     }
 
     return (
-      <div className='cashier-status-list cashier-status-list--compact'>
+      <div className='cashier-orders-grid cashier-orders-grid--professional'>
         {list.map(order => {
           const age = getOrderAgeMinutes(order.created_at)
           const isLate = mode === 'preparing' && age >= 10
@@ -1016,48 +1016,80 @@ ${itemsSummary
           const isCash = paymentValue === 'cash'
           const paidAmount = Number(order.paid_amount || 0)
           const change = Number(order.change_amount || 0)
+          const orderItems = ((order.items || []) as any[]).filter(Boolean)
+          const statusLabel =
+            mode === 'new' ? 'Новый' : mode === 'preparing' ? 'Готовится' : 'Готов'
 
           return (
-            <div
+            <article
               key={order.id}
-              className={`cashier-status-card cashier-status-card--compact ${isLate ? 'danger' : ''}`}
+              className={`cashier-order-card-pro ${isLate ? 'is-late' : ''}`}
             >
-              <div className='cashier-status-card__top'>
-                <strong className='cashier-order-number'>
-                  Заказ № {formatDailyOrderNumber(order)}
-                </strong>
-                <span className='cashier-order-badge'>
-                  {mode === 'new'
-                    ? 'Новый'
-                    : mode === 'preparing'
-                      ? 'Готовится'
-                      : 'Готов'}
+              <div className='cashier-order-card-pro__header'>
+                <div>
+                  <span className='cashier-order-card-pro__label'>Заказ</span>
+                  <strong>№ {formatDailyOrderNumber(order)}</strong>
+                </div>
+
+                <span className={`cashier-order-card-pro__status status-${mode}`}>
+                  {statusLabel}
                 </span>
               </div>
 
-              <div className='cashier-status-card__meta cashier-status-card__meta--compact'>
-                <span>
-                  Время:{' '}
-                  {order.created_at
-                    ? new Date(order.created_at).toLocaleTimeString('ru-RU')
-                    : '—'}
-                </span>
-                <span>Минут прошло: {age}</span>
-                <span>Сумма: {formatPrice(Number(order.total || 0))}</span>
-                <span>Тип: {getOrderPlaceText(order)}</span>
-                <span>Оплата: {getPaymentMethodLabel(paymentValue)}</span>
+              <div className='cashier-order-card-pro__summary'>
+                <div>
+                  <span>Сумма</span>
+                  <strong>{formatPrice(Number(order.total || 0))}</strong>
+                </div>
 
+                <div>
+                  <span>Время</span>
+                  <strong>
+                    {order.created_at
+                      ? new Date(order.created_at).toLocaleTimeString('ru-RU', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '—'}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Минут</span>
+                  <strong className={isLate ? 'danger-text' : ''}>{age}</strong>
+                </div>
+              </div>
+
+              <div className='cashier-order-card-pro__meta'>
+                <span>{getOrderPlaceText(order)}</span>
+                <span>{getPaymentMethodLabel(paymentValue)}</span>
                 {isCash ? (
-                  <>
-                    <span>Получено: {formatPrice(paidAmount)}</span>
-                    <span>Сдача: {formatPrice(change)}</span>
-                  </>
+                  <span>
+                    Получено {formatPrice(paidAmount)} / сдача {formatPrice(change)}
+                  </span>
                 ) : (
-                  <span>Оплачено: {formatPrice(Number(order.total || 0))}</span>
+                  <span>Онлайн оплачено</span>
                 )}
               </div>
 
-              <div className='cashier-status-card__actions'>
+              <div className='cashier-order-card-pro__items'>
+                {orderItems.length === 0 ? (
+                  <div className='cashier-order-card-pro__empty'>Нет позиций</div>
+                ) : (
+                  orderItems.slice(0, 6).map((item, index) => (
+                    <div key={`${order.id}-${item.id || item.title}-${index}`}>
+                      <span>{item.title || 'Позиция'}</span>
+                      <b>x{Number(item.quantity || 1)}</b>
+                    </div>
+                  ))
+                )}
+
+                {orderItems.length > 6 && (
+                  <small>+ ещё {orderItems.length - 6} поз.</small>
+                )}
+              </div>
+
+              <div className='cashier-order-card-pro__actions'>
                 <button
                   type='button'
                   className='cashier-cancel-btn'
@@ -1078,7 +1110,7 @@ ${itemsSummary
                   </button>
                 )}
               </div>
-            </div>
+            </article>
           )
         })}
       </div>

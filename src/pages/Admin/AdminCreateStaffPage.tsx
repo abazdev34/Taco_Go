@@ -23,6 +23,7 @@ function AdminCreateStaffPage() {
   );
 
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
+
   const canSubmit =
     normalizedEmail.length > 0 && password.trim().length >= 6 && !loading;
 
@@ -44,6 +45,17 @@ function AdminCreateStaffPage() {
       setMessage("");
       setMessageType("info");
 
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        setMessageType("error");
+        setMessage("Сессия не найдена. Выйдите и войдите заново.");
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke(
         "create-staff-user",
         {
@@ -52,25 +64,39 @@ function AdminCreateStaffPage() {
             password: password.trim(),
             role,
           },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
         }
       );
 
       if (error) {
         setMessageType("error");
-        setMessage(error.message || "Ошибка вызова функции.");
+
+        if (error.message.includes("403")) {
+          setMessage(
+            "Доступ запрещён. У текущего пользователя должна быть роль admin."
+          );
+        } else {
+          setMessage(error.message || "Ошибка вызова функции.");
+        }
+
         return;
       }
 
       if (data?.error) {
         const errorText = String(data.error);
 
-        if (errorText.includes("admin")) {
+        if (errorText.toLowerCase().includes("admin")) {
           setMessageType("error");
           setMessage("Только администратор может создавать сотрудников.");
           return;
         }
 
-        if (errorText.includes("already") || errorText.includes("registered")) {
+        if (
+          errorText.toLowerCase().includes("already") ||
+          errorText.toLowerCase().includes("registered")
+        ) {
           setMessageType("error");
           setMessage("Пользователь с таким email уже зарегистрирован.");
           return;
@@ -132,6 +158,7 @@ function AdminCreateStaffPage() {
                 type="email"
                 placeholder="employee@example.com"
                 value={email}
+                disabled={loading}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
@@ -144,12 +171,14 @@ function AdminCreateStaffPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Минимум 6 символов"
                   value={password}
+                  disabled={loading}
                   onChange={(e) => setPassword(e.target.value)}
                 />
 
                 <button
                   type="button"
                   className="admin-password-toggle"
+                  disabled={loading}
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
                   {showPassword ? "Скрыть" : "Показать"}
@@ -159,7 +188,11 @@ function AdminCreateStaffPage() {
 
             <label className="admin-field">
               <span>Роль</span>
-              <select value={role} onChange={(e) => setRole(e.target.value)}>
+              <select
+                value={role}
+                disabled={loading}
+                onChange={(e) => setRole(e.target.value)}
+              >
                 {roleOptions.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
@@ -193,7 +226,9 @@ function AdminCreateStaffPage() {
 
             <div className="admin-hint-item">
               <strong>Пароль</strong>
-              <p>Лучше сразу задать сложный пароль и потом передать сотруднику.</p>
+              <p>
+                Лучше сразу задать сложный пароль и потом передать сотруднику.
+              </p>
             </div>
 
             <div className="admin-hint-item">
