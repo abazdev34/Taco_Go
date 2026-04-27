@@ -560,3 +560,90 @@
     grid-template-columns: 1fr;
   }
 }
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; // 💥 МААНИЛҮҮ
+}
+
+.inventory-table th,
+.inventory-table td {
+  padding: 12px;
+  word-break: break-word; // текст сынбай кетпейт
+}
+
+/* 🔥 Биринчи колонка (Ингредиент) */
+.inventory-table td:first-child,
+.inventory-table th:first-child {
+  width: 220px;
+  min-width: 180px;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* эгер кара болуп көрүнбөй жатса */
+.inventory-table td:first-child strong {
+  color: #fff;
+}
+
+/* scroll fix */
+.inventory-table-wrap {
+  overflow-x: auto;
+}
+
+/* input кара болуп кетпесин */
+.inventory-table input {
+  background: #1a1a1f;
+  color: #fff;
+}
+.inventory-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.inventory-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.inventory-table th:nth-child(1),
+.inventory-table td:nth-child(1) {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #fff;
+  color: #111827;
+}
+
+.inventory-table th:nth-child(1) {
+  background: #111827;
+  color: #fff;
+  z-index: 8;
+}
+
+.inventory-table td:nth-child(1) strong {
+  display: block;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 950;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.inventory-table th,
+.inventory-table td {
+  white-space: normal;
+}.inventory-page {
+  overflow-x: hidden;
+}
+
+.inventory-table-wrap {
+  margin-left: 0;
+  transform: none;
+}
