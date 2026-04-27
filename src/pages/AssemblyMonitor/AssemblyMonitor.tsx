@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useOrders } from '../../hooks/useOrders'
 import { updateOrderWorkflow } from '../../api/orders'
 import '../Navbar/monitor.scss'
@@ -21,6 +21,20 @@ type TEffectiveAssemblyStatus =
 
 const AssemblyMonitor = () => {
   const { orders = [], loading, error } = useOrders()
+  const [selectedOrder, setSelectedOrder] = useState<IOrderRow | null>(null)
+
+  useEffect(() => {
+    if (!selectedOrder) return
+
+    const freshOrder = orders.find(order => order.id === selectedOrder.id)
+
+    if (!freshOrder) {
+      setSelectedOrder(null)
+      return
+    }
+
+    setSelectedOrder(freshOrder)
+  }, [orders, selectedOrder?.id])
 
   const getDaySequence = (targetOrder: IOrderRow) => {
     if (targetOrder.daily_order_number) {
@@ -32,13 +46,13 @@ const AssemblyMonitor = () => {
 
   const getKitchenItems = (order: IOrderRow): IMenuItem[] => {
     return (order.items || []).filter(
-      (item) => item.categories?.type !== 'assembly'
+      item => item.categories?.type !== 'assembly'
     )
   }
 
   const getAssemblyItems = (order: IOrderRow): IMenuItem[] => {
     return (order.items || []).filter(
-      (item) => item.categories?.type === 'assembly'
+      item => item.categories?.type === 'assembly'
     )
   }
 
@@ -48,7 +62,7 @@ const AssemblyMonitor = () => {
   ): TGroupedItem[] => {
     const map = new Map<string, TGroupedItem>()
 
-    items.forEach((item) => {
+    items.forEach(item => {
       const qty = item.quantity || 1
       const key = `${source}:${item.id}`
       const existing = map.get(key)
@@ -68,17 +82,16 @@ const AssemblyMonitor = () => {
     return Array.from(map.values())
   }
 
-  const getGroupedKitchenItems = (order: IOrderRow): TGroupedItem[] => {
+  const getGroupedKitchenItems = (order: IOrderRow) => {
     return groupItems(getKitchenItems(order), 'kitchen')
   }
 
-  const getGroupedAssemblyItems = (order: IOrderRow): TGroupedItem[] => {
+  const getGroupedAssemblyItems = (order: IOrderRow) => {
     return groupItems(getAssemblyItems(order), 'assembly')
   }
 
   const isKitchenReady = (order: IOrderRow) => {
     const kitchenItems = getKitchenItems(order)
-
     if (!kitchenItems.length) return true
 
     return order.kitchen_status === 'ready' || order.kitchen_status === 'skipped'
@@ -88,16 +101,15 @@ const AssemblyMonitor = () => {
     source: 'kitchen' | 'assembly',
     itemId: string,
     index: number
-  ) => {
-    return `${source}:${itemId}-${index}`
-  }
+  ) => `${source}:${itemId}-${index}`
 
   const getAllProgressKeys = (order: IOrderRow) => {
-    const kitchen = getGroupedKitchenItems(order)
-    const assembly = getGroupedAssemblyItems(order)
-    const allItems = [...kitchen, ...assembly]
+    const allItems = [
+      ...getGroupedKitchenItems(order),
+      ...getGroupedAssemblyItems(order),
+    ]
 
-    return allItems.flatMap((item) =>
+    return allItems.flatMap(item =>
       Array.from({ length: item.quantity }, (_, index) =>
         getProgressUnitKey(item.source, item.id, index)
       )
@@ -109,7 +121,7 @@ const AssemblyMonitor = () => {
 
     return Array.from({ length: item.quantity }, (_, index) =>
       getProgressUnitKey(item.source, item.id, index)
-    ).filter((key) => progress.includes(key)).length
+    ).filter(key => progress.includes(key)).length
   }
 
   const allItemsChecked = (order: IOrderRow) => {
@@ -117,8 +129,7 @@ const AssemblyMonitor = () => {
     const progress = order.assembly_progress || []
 
     if (!allKeys.length) return true
-
-    return allKeys.every((key) => progress.includes(key))
+    return allKeys.every(key => progress.includes(key))
   }
 
   const getEffectiveAssemblyStatus = (
@@ -127,30 +138,16 @@ const AssemblyMonitor = () => {
     const rawStatus = order.assembly_status as
       | TEffectiveAssemblyStatus
       | undefined
+
     const kitchenReady = isKitchenReady(order)
     const isComplete = allItemsChecked(order)
 
     if (rawStatus === 'skipped') return 'skipped'
-
-    if (!kitchenReady) {
-      return 'waiting'
-    }
-
-    if (rawStatus === 'ready' && !isComplete) {
-      return 'preparing'
-    }
-
-    if (rawStatus === 'waiting') {
-      return 'new'
-    }
-
-    if (rawStatus === 'ready' && isComplete) {
-      return 'ready'
-    }
-
-    if (rawStatus === 'preparing') {
-      return 'preparing'
-    }
+    if (!kitchenReady) return 'waiting'
+    if (rawStatus === 'ready' && !isComplete) return 'preparing'
+    if (rawStatus === 'waiting') return 'new'
+    if (rawStatus === 'ready' && isComplete) return 'ready'
+    if (rawStatus === 'preparing') return 'preparing'
 
     return 'new'
   }
@@ -159,11 +156,11 @@ const AssemblyMonitor = () => {
     const kitchenItems = getKitchenItems(order)
 
     if (!kitchenItems.length) return 'Не требуется'
-
     if (order.kitchen_status === 'ready') return 'Готово'
     if (order.kitchen_status === 'preparing') return 'Готовится'
     if (order.kitchen_status === 'new') return 'Новый'
     if (order.kitchen_status === 'skipped') return 'Пропущено'
+
     return 'Неизвестно'
   }
 
@@ -229,7 +226,7 @@ const AssemblyMonitor = () => {
         { length: item.quantity },
         (_, index) => index
       ).find(
-        (index) =>
+        index =>
           !current.includes(getProgressUnitKey(item.source, item.id, index))
       )
 
@@ -258,7 +255,7 @@ const AssemblyMonitor = () => {
       const checkedIndexes = Array.from(
         { length: item.quantity },
         (_, index) => index
-      ).filter((index) =>
+      ).filter(index =>
         current.includes(getProgressUnitKey(item.source, item.id, index))
       )
 
@@ -266,8 +263,7 @@ const AssemblyMonitor = () => {
       if (lastCheckedIndex === undefined) return
 
       const nextProgress = current.filter(
-        (key) =>
-          key !== getProgressUnitKey(item.source, item.id, lastCheckedIndex)
+        key => key !== getProgressUnitKey(item.source, item.id, lastCheckedIndex)
       )
 
       await updateAssemblyProgress(order, nextProgress)
@@ -314,6 +310,8 @@ const AssemblyMonitor = () => {
         assembly_status: 'ready',
         status: 'ready',
       })
+
+      setSelectedOrder(null)
     } catch (err) {
       console.error('Ошибка завершения сборки:', err)
       alert('Не удалось завершить сборку')
@@ -322,7 +320,7 @@ const AssemblyMonitor = () => {
 
   const assemblyRelevantOrders = useMemo(() => {
     return (orders || [])
-      .filter((order) => {
+      .filter(order => {
         const items = Array.isArray(order.items) ? order.items : []
         if (!items.length) return false
 
@@ -330,7 +328,13 @@ const AssemblyMonitor = () => {
         if (!hasAssemblyItems) return false
 
         const isAcceptedByCashier =
-          order.source === 'cashier' || order.cashier_status === 'new'
+          order.source === 'cashier' ||
+          order.source === 'client' ||
+          order.cashier_status === 'new' ||
+          order.cashier_status === 'preparing' ||
+          order.cashier_status === 'ready' ||
+          order.cashier_status === null ||
+          !order.cashier_status
 
         if (!isAcceptedByCashier) return false
 
@@ -355,19 +359,18 @@ const AssemblyMonitor = () => {
         const aPriority = priorityMap[getEffectiveAssemblyStatus(a)] || 0
         const bPriority = priorityMap[getEffectiveAssemblyStatus(b)] || 0
 
-        if (aPriority !== bPriority) {
-          return bPriority - aPriority
-        }
+        if (aPriority !== bPriority) return bPriority - aPriority
 
         const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
         const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+
         return bTime - aTime
       })
   }, [orders])
 
   const newOrders = useMemo(
     () =>
-      assemblyRelevantOrders.filter((order) => {
+      assemblyRelevantOrders.filter(order => {
         const effectiveStatus = getEffectiveAssemblyStatus(order)
         return effectiveStatus === 'waiting' || effectiveStatus === 'new'
       }),
@@ -377,7 +380,7 @@ const AssemblyMonitor = () => {
   const preparingOrders = useMemo(
     () =>
       assemblyRelevantOrders.filter(
-        (order) => getEffectiveAssemblyStatus(order) === 'preparing'
+        order => getEffectiveAssemblyStatus(order) === 'preparing'
       ),
     [assemblyRelevantOrders]
   )
@@ -385,7 +388,7 @@ const AssemblyMonitor = () => {
   const readyOrders = useMemo(
     () =>
       assemblyRelevantOrders.filter(
-        (order) => getEffectiveAssemblyStatus(order) === 'ready'
+        order => getEffectiveAssemblyStatus(order) === 'ready'
       ),
     [assemblyRelevantOrders]
   )
@@ -405,14 +408,16 @@ const AssemblyMonitor = () => {
         <div className='item-group__title'>{title}</div>
 
         <div className='order-items'>
-          {items.map((item) => {
+          {items.map(item => {
             const checkedCount = getItemCheckedCount(order, item)
             const completed = checkedCount >= item.quantity
 
             return (
               <div
                 key={`${order.id}-${item.source}-${item.id}`}
-                className={`assembly-progress-line ${completed ? 'completed' : ''}`}
+                className={`assembly-progress-line ${
+                  completed ? 'completed' : ''
+                }`}
               >
                 <div className='assembly-progress-line__info'>
                   <span>{item.title}</span>
@@ -425,8 +430,13 @@ const AssemblyMonitor = () => {
                   <button
                     type='button'
                     className='qty-action minus'
-                    onClick={() => handleRemoveOneUnit(order, item)}
-                    disabled={!kitchenReady || !checkedCount || isReadyAssemblyOrder}
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleRemoveOneUnit(order, item)
+                    }}
+                    disabled={
+                      !kitchenReady || !checkedCount || isReadyAssemblyOrder
+                    }
                   >
                     −
                   </button>
@@ -434,7 +444,10 @@ const AssemblyMonitor = () => {
                   <button
                     type='button'
                     className='qty-action plus'
-                    onClick={() => handleAddOneUnit(order, item)}
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleAddOneUnit(order, item)
+                    }}
                     disabled={
                       !kitchenReady ||
                       checkedCount >= item.quantity ||
@@ -447,7 +460,10 @@ const AssemblyMonitor = () => {
                   <button
                     type='button'
                     className='qty-action complete'
-                    onClick={() => handleCompleteItem(order, item)}
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleCompleteItem(order, item)
+                    }}
                     disabled={!kitchenReady || completed || isReadyAssemblyOrder}
                   >
                     Всё
@@ -463,8 +479,6 @@ const AssemblyMonitor = () => {
 
   const renderOrderCard = (order: IOrderRow) => {
     const groupedKitchenItems = getGroupedKitchenItems(order)
-    const groupedAssemblyItems = getGroupedAssemblyItems(order)
-
     const kitchenReady = isKitchenReady(order)
     const effectiveStatus = getEffectiveAssemblyStatus(order)
 
@@ -481,6 +495,7 @@ const AssemblyMonitor = () => {
           isPreparingAssemblyOrder ? 'order-card--preparing' : ''
         } ${isReadyAssemblyOrder ? 'order-card--ready' : ''}`}
         key={order.id}
+        onClick={() => setSelectedOrder(order)}
       >
         <div className='order-card__header'>
           <div>
@@ -491,21 +506,19 @@ const AssemblyMonitor = () => {
           </div>
 
           <div className='badge-row'>
-            {isWaitingAssemblyOrder && (
-              <span className='status-badge waiting'>Ожидает кухню</span>
-            )}
-
-            {isNewAssemblyOrder && (
-              <span className='status-badge new'>Новый</span>
-            )}
-
-            {isPreparingAssemblyOrder && (
-              <span className='status-badge preparing'>Собирается</span>
-            )}
-
-            {isReadyAssemblyOrder && (
-              <span className='status-badge ready'>Готово</span>
-            )}
+            <span
+              className={`status-badge ${
+                isWaitingAssemblyOrder
+                  ? 'waiting'
+                  : isNewAssemblyOrder
+                    ? 'new'
+                    : isPreparingAssemblyOrder
+                      ? 'preparing'
+                      : 'ready'
+              }`}
+            >
+              {getAssemblyStatusLabel(order)}
+            </span>
 
             <span
               className={`status-badge ${kitchenReady ? 'ready' : 'preparing'}`}
@@ -528,60 +541,147 @@ const AssemblyMonitor = () => {
           </p>
         </div>
 
-        {renderProgressBlock(
-          order,
-          groupedKitchenItems,
-          'Позиции кухни',
-          'kitchen',
-          isReadyAssemblyOrder,
-          kitchenReady
-        )}
+        <button
+          type='button'
+          className='details-btn'
+          onClick={e => {
+            e.stopPropagation()
+            setSelectedOrder(order)
+          }}
+        >
+          Детали заказа
+        </button>
+      </div>
+    )
+  }
 
-        {renderProgressBlock(
-          order,
-          groupedAssemblyItems,
-          'Позиции сборки',
-          'assembly',
-          isReadyAssemblyOrder,
-          kitchenReady
-        )}
+  const renderOrderModal = () => {
+    if (!selectedOrder) return null
 
-        {order.comment && <div className='comment-box'>💬 {order.comment}</div>}
+    const order = selectedOrder
+    const groupedKitchenItems = getGroupedKitchenItems(order)
+    const groupedAssemblyItems = getGroupedAssemblyItems(order)
 
-        <div className='action-row'>
-          {isWaitingAssemblyOrder && (
-            <button type='button' className='primary-btn' disabled>
-              Ждать кухню
-            </button>
-          )}
+    const kitchenReady = isKitchenReady(order)
+    const effectiveStatus = getEffectiveAssemblyStatus(order)
 
-          {isNewAssemblyOrder && (
-            <button
-              type='button'
-              className='primary-btn'
-              onClick={() => handleAssemblyStart(order)}
-              disabled={!kitchenReady}
+    const isWaitingAssemblyOrder = effectiveStatus === 'waiting'
+    const isNewAssemblyOrder = effectiveStatus === 'new'
+    const isPreparingAssemblyOrder = effectiveStatus === 'preparing'
+    const isReadyAssemblyOrder = effectiveStatus === 'ready'
+
+    return (
+      <div className='order-modal'>
+        <div
+          className='order-modal__overlay'
+          onClick={() => setSelectedOrder(null)}
+        />
+
+        <div
+          className='order-modal__card'
+          onClick={e => {
+            e.stopPropagation()
+          }}
+        >
+          <button
+            type='button'
+            className='order-modal__close'
+            onClick={() => setSelectedOrder(null)}
+          >
+            ✕
+          </button>
+
+          <div className='order-modal__head'>
+            <div>
+              <h2>Заказ №{getDaySequence(order)}</h2>
+              <p>Время: {formatOrderTime(order.created_at)}</p>
+            </div>
+
+            <span
+              className={`status-badge ${
+                isWaitingAssemblyOrder
+                  ? 'waiting'
+                  : isNewAssemblyOrder
+                    ? 'new'
+                    : isPreparingAssemblyOrder
+                      ? 'preparing'
+                      : 'ready'
+              }`}
             >
-              {kitchenReady ? 'Собрать' : 'Ждать кухню'}
-            </button>
+              {getAssemblyStatusLabel(order)}
+            </span>
+          </div>
+
+          <div className='order-meta'>
+            <p>
+              <strong>Статус кухни:</strong> {getKitchenStatusLabel(order)}
+            </p>
+            <p>
+              <strong>Статус сборки:</strong> {getAssemblyStatusLabel(order)}
+            </p>
+          </div>
+
+          {renderProgressBlock(
+            order,
+            groupedKitchenItems,
+            'Позиции кухни',
+            'kitchen',
+            isReadyAssemblyOrder,
+            kitchenReady
           )}
 
-          {isPreparingAssemblyOrder && (
-            <button
-              type='button'
-              className='success-btn'
-              onClick={() => handleAssemblyReady(order)}
-              disabled={!allItemsChecked(order) || !kitchenReady}
-            >
-              Готово
-            </button>
+          {renderProgressBlock(
+            order,
+            groupedAssemblyItems,
+            'Позиции сборки',
+            'assembly',
+            isReadyAssemblyOrder,
+            kitchenReady
           )}
 
-          {isReadyAssemblyOrder && (
-            <button type='button' className='ready-btn' disabled>
-              Сборка завершена
-            </button>
-          )}
+          {order.comment && <div className='comment-box'>💬 {order.comment}</div>}
+
+          <div className='action-row'>
+            {isWaitingAssemblyOrder && (
+              <button type='button' className='primary-btn' disabled>
+                Ждать кухню
+              </button>
+            )}
+
+            {isNewAssemblyOrder && (
+              <button
+                type='button'
+                className='primary-btn'
+                onClick={e => {
+                  e.stopPropagation()
+                  handleAssemblyStart(order)
+                }}
+                disabled={!kitchenReady}
+              >
+                {kitchenReady ? 'Собрать' : 'Ждать кухню'}
+              </button>
+            )}
+
+            {isPreparingAssemblyOrder && (
+              <button
+                type='button'
+                className='success-btn'
+                onClick={e => {
+                  e.stopPropagation()
+                  handleAssemblyReady(order)
+                }}
+                disabled={!allItemsChecked(order) || !kitchenReady}
+              >
+                Готово
+              </button>
+            )}
+
+            {isReadyAssemblyOrder && (
+              <button type='button' className='ready-btn' disabled>
+                Сборка завершена
+              </button>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -650,6 +750,8 @@ const AssemblyMonitor = () => {
           </div>
         </div>
       </div>
+
+      {renderOrderModal()}
     </div>
   )
 }

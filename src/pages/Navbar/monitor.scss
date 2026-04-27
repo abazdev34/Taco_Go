@@ -4302,3 +4302,74 @@
   color: #f5d58f;
   border-radius: 18px;
 }
+.details-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #222;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.order-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.order-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.order-modal__card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(720px, calc(100% - 24px));
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+  background: #111;
+  border: 1px solid rgba(245, 213, 143, 0.35);
+  border-radius: 24px;
+  padding: 20px;
+  color: #fff;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+
+.order-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
+  background: #222;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.order-modal__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding-right: 50px;
+  margin-bottom: 14px;
+
+  h2 {
+    margin: 0;
+    font-size: 28px;
+  }
+
+  p {
+    margin: 6px 0 0;
+    color: #aaa;
+  }
+}

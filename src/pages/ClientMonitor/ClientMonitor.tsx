@@ -152,13 +152,15 @@ function ClientMonitor() {
       const hasKitchen = cart.some(
         (item: any) => item.categories?.type !== "assembly"
       );
+
       const hasAssembly = cart.some(
         (item: any) => item.categories?.type === "assembly"
       );
 
       const nextStatus = hasKitchen ? "new" : "preparing";
-      const nextCashierStatus = hasKitchen ? "new" : "assembly";
+      const nextCashierStatus = hasKitchen ? "new" : "preparing";
       const nextKitchenStatus = hasKitchen ? "new" : "skipped";
+
       const nextAssemblyStatus = hasAssembly
         ? hasKitchen
           ? "waiting"
@@ -197,6 +199,7 @@ function ClientMonitor() {
       setLastOrderNumber(
         String(savedOrder.daily_order_number || 0).padStart(3, "0")
       );
+
       clearCart();
       setComment("");
       setOrderMode("hall");

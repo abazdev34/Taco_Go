@@ -11,7 +11,6 @@ import {
   canShowInHallMonitor,
   getOrderPlaceValue,
 } from '../../utils/orderHelpers'
-import logoImg from '../../assets/img/logo-burritos.jpg'
 import './HallMonitor.scss'
 
 type THallMenuCategory = {
@@ -28,7 +27,6 @@ type THallMenuItem = {
   image_url?: string | null
   image?: string | null
   photo?: string | null
-  description?: string | null
   is_active?: boolean
   sort_order?: number | null
   categories?: THallMenuCategory | null
@@ -46,9 +44,7 @@ const getCategoryName = (item: THallMenuItem) =>
 
 const uniqueOrdersById = <T extends { id: string }>(orders: T[]) => {
   const map = new Map<string, T>()
-  orders.forEach(order => {
-    map.set(order.id, order)
-  })
+  orders.forEach(order => map.set(order.id, order))
   return Array.from(map.values())
 }
 
@@ -63,6 +59,7 @@ function HallMonitor() {
   const [menuLoading, setMenuLoading] = useState(false)
   const [highlightedIds, setHighlightedIds] = useState<string[]>([])
   const [showReadyBanner, setShowReadyBanner] = useState(false)
+
   const prevReadyIdsRef = useRef<string[]>([])
   const audioUnlockedRef = useRef(false)
 
@@ -86,6 +83,7 @@ function HallMonitor() {
     const loadMenu = async () => {
       try {
         setMenuLoading(true)
+
         const data = await fetchMenuItems()
 
         const prepared = (data || [])
@@ -258,13 +256,18 @@ function HallMonitor() {
 
       <div className='mcd-hall__shell'>
         <section className='mcd-board'>
-          <div className='mcd-board__hero'>
-            <div className='mcd-brand'>
-              <img src={logoImg} alt='Бурритос' className='mcd-brand__logo' />
-              <div>
-                <span className='mcd-badge'>Mexican Grill</span>
-                <h1>Номера заказов</h1>
-                <p>Следите за экраном и ожидайте вызова</p>
+          <div className='brand-hero'>
+            <div className='brand-hero__inner'>
+              <div className='brand-hero__logo'>🌯</div>
+
+              <div className='brand-hero__text'>
+                <h1>БУРРИТОС</h1>
+
+                <div className='brand-hero__subtitle'>
+                  <span />
+                  МЕКСИКАНСКАЯ КУХНЯ
+                  <span />
+                </div>
               </div>
             </div>
           </div>
