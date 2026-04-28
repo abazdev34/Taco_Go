@@ -1,34 +1,41 @@
 .admin-create-staff-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 20px;
+  align-items: start;
 }
 
 .admin-form-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 214, 111, 0.08);
+  min-width: 0;
+  padding: 22px;
   border-radius: 24px;
-  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  color: #111827;
 
   &--hint {
     background:
-      linear-gradient(180deg, rgba(245, 193, 60, 0.08), rgba(255, 255, 255, 0.03)),
-      rgba(255, 255, 255, 0.03);
+      radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 28%),
+      #ffffff;
   }
 
   &__head {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
 
     h3 {
       margin: 0 0 6px;
-      color: #fff3cf;
-      font-size: 20px;
-      font-weight: 900;
+      color: #111827;
+      font-size: 22px;
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: -0.03em;
     }
 
     span {
-      color: rgba(255, 243, 205, 0.68);
-      font-size: 13px;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 400;
     }
   }
 }
@@ -36,7 +43,7 @@
 .admin-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 15px;
 }
 
 .admin-field {
@@ -45,35 +52,42 @@
   gap: 8px;
 
   span {
-    color: #f5d38a;
+    color: #374151;
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 600;
   }
 
   input,
   select {
+    width: 100%;
     min-height: 50px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 226, 160, 0.1);
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
+    border-radius: 15px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #111827;
     padding: 0 14px;
     outline: none;
     font-size: 14px;
+    font-weight: 400;
+    transition: 0.2s ease;
 
     &::placeholder {
-      color: rgba(255, 243, 205, 0.42);
+      color: #9ca3af;
     }
 
     &:focus {
-      border-color: rgba(245, 193, 60, 0.36);
-      box-shadow: 0 0 0 4px rgba(245, 193, 60, 0.08);
+      border-color: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
     }
   }
 
+  select {
+    cursor: pointer;
+  }
+
   select option {
-    background: #1b1b1b;
-    color: #fff;
+    background: #ffffff;
+    color: #111827;
   }
 }
 
@@ -85,23 +99,44 @@
 
 .admin-password-toggle {
   min-height: 50px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff2c7;
-  font-weight: 800;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 15px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   transition: 0.2s ease;
   white-space: nowrap;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: #020617;
+    transform: translateY(-1px);
   }
 }
 
 .admin-btn--wide {
   width: 100%;
+  min-height: 50px;
+  border: 0;
+  border-radius: 16px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 }
 
 .admin-hint-list {
@@ -111,40 +146,85 @@
 }
 
 .admin-hint-item {
-  padding: 14px;
+  padding: 15px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 214, 111, 0.06);
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
 
   strong {
     display: block;
     margin-bottom: 6px;
-    color: #fff3cf;
+    color: #111827;
     font-size: 14px;
-    font-weight: 900;
+    font-weight: 700;
   }
 
   p {
     margin: 0;
-    color: rgba(255, 243, 205, 0.72);
+    color: #64748b;
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.55;
+    font-weight: 400;
   }
 }
 
+/* TABLET */
 @media (max-width: 920px) {
   .admin-create-staff-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .admin-form-card {
+    padding: 18px;
   }
 }
 
+/* PHONE */
 @media (max-width: 640px) {
+  .admin-create-staff-grid {
+    gap: 14px;
+  }
+
   .admin-form-card {
     border-radius: 20px;
     padding: 14px;
+
+    &__head {
+      h3 {
+        font-size: 20px;
+      }
+
+      span {
+        font-size: 13px;
+      }
+    }
   }
 
   .admin-password-wrap {
     grid-template-columns: 1fr;
+  }
+
+  .admin-password-toggle,
+  .admin-btn--wide {
+    width: 100%;
+  }
+
+  .admin-field {
+    input,
+    select {
+      min-height: 48px;
+    }
+  }
+}
+
+/* SMALL PHONE */
+@media (max-width: 380px) {
+  .admin-form-card {
+    padding: 12px;
+  }
+
+  .admin-hint-item {
+    padding: 12px;
   }
 }

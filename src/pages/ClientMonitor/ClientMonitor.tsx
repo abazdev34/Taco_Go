@@ -117,7 +117,7 @@ function ClientMonitor() {
 
   const scrollCategories = useCallback((direction: "left" | "right") => {
     categoryRef.current?.scrollBy({
-      left: direction === "left" ? -280 : 280,
+      left: direction === "left" ? -300 : 300,
       behavior: "smooth",
     });
   }, []);
@@ -254,7 +254,7 @@ function ClientMonitor() {
       <section className="client-category-section">
         <button
           type="button"
-          className="client-category-arrow client-category-arrow--left"
+          className="client-category-arrow"
           onClick={() => scrollCategories("left")}
         >
           ‹
@@ -278,7 +278,7 @@ function ClientMonitor() {
 
         <button
           type="button"
-          className="client-category-arrow client-category-arrow--right"
+          className="client-category-arrow"
           onClick={() => scrollCategories("right")}
         >
           ›

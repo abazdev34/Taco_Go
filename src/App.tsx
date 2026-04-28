@@ -8,15 +8,8 @@ import LoginPage from './pages/LoginPage'
 import PendingApprovalPage from './pages/PendingApprovalPage'
 import RegisterPage from './pages/RegisterPage'
 
-import AssemblyMonitor from './pages/AssemblyMonitor/AssemblyMonitor'
-import CashierMonitor from './pages/CashierMonitor/CashierMonitor'
-import ClientMonitor from './pages/ClientMonitor/ClientMonitor'
-import HallMonitor from './pages/HallMonitor/HallMonitor'
-import HistoryPage from './pages/History/HistoryPage'
-import KitchenMonitor from './pages/KitchenMonitor/KitchenMonitor'
-import TechInventoryPage from "./pages/Admin/TechInventoryPage";
-
 import AdminAccessRequestsPage from './pages/Admin/AdminAccessRequestsPage'
+import AdminCashMonitor from './pages/AdminCashMonitor/AdminCashMonitor'
 import AdminCreateStaffPage from './pages/Admin/AdminCreateStaffPage'
 import AdminLayout from './pages/Admin/AdminLayout'
 import AdminOrdersPage from './pages/Admin/AdminOrdersPage'
@@ -27,8 +20,15 @@ import MenuItemsPage from './pages/Admin/MenuItemsPage'
 import MonthlyStatsPage from './pages/Admin/MonthlyStatsPage'
 import OrderHistoryPage from './pages/Admin/OrderHistoryPage'
 import TechCardsPage from './pages/Admin/TechCardsPage'
+import TechInventoryPage from './pages/Admin/TechInventoryPage'
 import WeeklyStatsPage from './pages/Admin/WeeklyStatsPage'
-import AdminCashMonitor from './pages/AdminCashMonitor/AdminCashMonitor'
+
+import AssemblyMonitor from './pages/AssemblyMonitor/AssemblyMonitor'
+import CashierMonitor from './pages/Cashier/CashierMonitor'
+import ClientMonitor from './pages/ClientMonitor/ClientMonitor'
+import HallMonitor from './pages/HallMonitor/HallMonitor'
+import HistoryPage from './pages/History/HistoryPage'
+import KitchenMonitor from './pages/KitchenMonitor/KitchenMonitor'
 
 function App() {
   return (
@@ -94,7 +94,6 @@ function App() {
             </RoleRoute>
           }
         >
-          <Route path="/admin/inventory" element={<TechInventoryPage />} />
           <Route index element={<AdminOrdersPage />} />
           <Route path='daily' element={<DailyStatsPage />} />
           <Route path='weekly' element={<WeeklyStatsPage />} />
@@ -103,6 +102,7 @@ function App() {
           <Route path='categories' element={<CategoriesPage />} />
           <Route path='menu-items' element={<MenuItemsPage />} />
           <Route path='tech-cards' element={<TechCardsPage />} />
+          <Route path='inventory' element={<TechInventoryPage />} />
           <Route path='access-requests' element={<AdminAccessRequestsPage />} />
           <Route path='create-staff' element={<AdminCreateStaffPage />} />
           <Route path='users' element={<AdminUsersPage />} />

@@ -5,6 +5,7 @@ import {
   fetchOpenCashSession,
   openCashSession,
   type ICashSessionRow,
+  type TCloseCashSessionPayload,
 } from '../api/cashSessions'
 
 export const useCashSession = () => {
@@ -37,9 +38,15 @@ export const useCashSession = () => {
       try {
         setError('')
 
+        const current = await fetchOpenCashSession()
+        if (current?.id) {
+          setSession(current)
+          return current
+        }
+
         const created = await openCashSession({
-          opened_by: openedBy,
-          opening_balance: openingBalance,
+          opened_by: openedBy || 'Кассир',
+          opening_balance: Number(openingBalance || 0),
         })
 
         setSession(created)
@@ -54,22 +61,17 @@ export const useCashSession = () => {
   )
 
   const closeSession = useCallback(
-    async (
-      id: string,
-      payload: {
-        closed_by: string
-        closing_balance: number
-        total_orders: number
-        total_cash: number
-        total_online: number
-        total_in: number
-        total_out: number
-      }
-    ) => {
+    async (id: string, payload: TCloseCashSessionPayload) => {
       try {
         setError('')
-        await closeCashSession(id, payload)
+
+        if (!id) {
+          throw new Error('Активная смена не найдена')
+        }
+
+        const closed = await closeCashSession(id, payload)
         setSession(null)
+        return closed
       } catch (e: any) {
         console.error('CLOSE CASH SESSION ERROR:', e)
         setError(e?.message || 'Не удалось закрыть смену')
@@ -81,50 +83,30 @@ export const useCashSession = () => {
 
   useEffect(() => {
     mountedRef.current = true
-
     void loadSession(true)
 
     const channel = supabase
       .channel('cash-sessions-realtime')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'cash_sessions',
-        },
+        { event: '*', schema: 'public', table: 'cash_sessions' },
         payload => {
-          const next = payload.new as ICashSessionRow
-          if (next?.closed_at) return
-          setSession(next)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'cash_sessions',
-        },
-        payload => {
-          const next = payload.new as ICashSessionRow
-          if (next?.closed_at) {
-            setSession(null)
+          const next = payload.new as ICashSessionRow | null
+          const oldRow = payload.old as ICashSessionRow | null
+
+          if (payload.eventType === 'DELETE') {
+            setSession(prev => (prev?.id === oldRow?.id ? null : prev))
             return
           }
+
+          if (!next) return
+
+          if (next.closed_at) {
+            setSession(prev => (prev?.id === next.id ? null : prev))
+            return
+          }
+
           setSession(next)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'cash_sessions',
-        },
-        payload => {
-          const oldRow = payload.old as ICashSessionRow
-          setSession(prev => (prev?.id === oldRow?.id ? null : prev))
         }
       )
       .subscribe()

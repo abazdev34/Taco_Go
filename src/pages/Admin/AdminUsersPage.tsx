@@ -18,8 +18,20 @@ const roleOptions = [
   { value: "hall", label: "Зал / Монитор" },
   { value: "assembly", label: "Сборка" },
   { value: "history", label: "История" },
-  { value: "client", label: "Клиент" }, // 🔥 МААНИЛҮҮ
+  { value: "client", label: "Клиент" },
 ];
+
+function getStatusText(status?: string | null) {
+  if (status === "approved") return "Одобрен";
+  if (status === "rejected") return "Отклонён";
+  return "Ожидание";
+}
+
+function getStatusClass(status?: string | null) {
+  if (status === "approved") return "approved";
+  if (status === "rejected") return "rejected";
+  return "pending";
+}
 
 function AdminUsersPage() {
   const [users, setUsers] = useState<Profile[]>([]);
@@ -28,6 +40,7 @@ function AdminUsersPage() {
   const [messageType, setMessageType] = useState<"success" | "error" | "info">("info");
   const [search, setSearch] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -62,9 +75,7 @@ function AdminUsersPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => {
-          void loadUsers();
-        }
+        () => void loadUsers()
       )
       .subscribe();
 
@@ -123,10 +134,7 @@ function AdminUsersPage() {
 
       const { error } = await supabase
         .from("profiles")
-        .update({
-          status,
-          approved_at: approvedAt,
-        })
+        .update({ status, approved_at: approvedAt })
         .eq("id", id);
 
       if (error) {
@@ -142,7 +150,7 @@ function AdminUsersPage() {
       );
 
       setMessageType("success");
-      setMessage(status === "approved" ? "Одобрен" : "Отклонён");
+      setMessage(status === "approved" ? "Пользователь одобрен" : "Пользователь отклонён");
     } catch (error: any) {
       setMessageType("error");
       setMessage(error?.message || "Не удалось обновить статус");
@@ -152,15 +160,27 @@ function AdminUsersPage() {
   };
 
   return (
-    <div className="admin-page-card">
+    <div className={darkMode ? "admin-page-card admin-page-card--dark" : "admin-page-card"}>
       <div className="admin-page-header">
-        <h1>Пользователи</h1>
+        <div>
+          <span className="admin-page-badge">Админ панель</span>
+          <h1>Пользователи</h1>
+          <p>Управление ролями и статусами сотрудников</p>
+        </div>
+
+        <button
+          type="button"
+          className="admin-theme-toggle"
+          onClick={() => setDarkMode((prev) => !prev)}
+        >
+          {darkMode ? "☀️ Light" : "🌙 Dark"}
+        </button>
       </div>
 
       <div className="admin-toolbar">
         <input
           type="text"
-          placeholder="Поиск..."
+          placeholder="Поиск по email, роли или статусу..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -175,6 +195,8 @@ function AdminUsersPage() {
 
       {loading ? (
         <div className="admin-message admin-message--info">Загрузка...</div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="admin-message admin-message--info">Пользователи не найдены</div>
       ) : (
         <table className="admin-table">
           <thead>
@@ -192,11 +214,11 @@ function AdminUsersPage() {
 
               return (
                 <tr key={user.id}>
-                  <td>{user.email}</td>
+                  <td>{user.email || "Без email"}</td>
 
                   <td>
                     <select
-                      value={user.role || ""}
+                      value={user.role || "client"}
                       disabled={isBusy}
                       onChange={(e) => updateRole(user.id, e.target.value)}
                     >
@@ -208,22 +230,32 @@ function AdminUsersPage() {
                     </select>
                   </td>
 
-                  <td>{user.status}</td>
+                  <td>
+                    <span className={`admin-status admin-status--${getStatusClass(user.status)}`}>
+                      {getStatusText(user.status)}
+                    </span>
+                  </td>
 
                   <td>
-                    <button
-                      disabled={isBusy}
-                      onClick={() => updateStatus(user.id, "approved")}
-                    >
-                      ✔
-                    </button>
+                    <div className="admin-actions">
+                      <button
+                        type="button"
+                        className="admin-action-btn admin-action-btn--approve"
+                        disabled={isBusy}
+                        onClick={() => updateStatus(user.id, "approved")}
+                      >
+                        ✓
+                      </button>
 
-                    <button
-                      disabled={isBusy}
-                      onClick={() => updateStatus(user.id, "rejected")}
-                    >
-                      ✖
-                    </button>
+                      <button
+                        type="button"
+                        className="admin-action-btn admin-action-btn--reject"
+                        disabled={isBusy}
+                        onClick={() => updateStatus(user.id, "rejected")}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
