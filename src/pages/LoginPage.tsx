@@ -43,7 +43,7 @@ function LoginPage() {
           <div className="login-hero__content">
             <div className="login-hero__logo-wrap">
               <img
-                src="/logo-burritos.jpg"
+                src="/logo-new.png"
                 alt="Бурритос"
                 className="login-hero__logo"
               />
