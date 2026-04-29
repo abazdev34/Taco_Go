@@ -44,15 +44,105 @@ const AssemblyMonitor = () => {
 		return getDailyOrderNumber(targetOrder, orders || [])
 	}
 
+	const getRawItem = (item: IMenuItem) => {
+		const raw = item as any
+		return raw.menu_item || raw.menuItem || raw.product || raw.item || raw
+	}
+
+	const getItemId = (item: IMenuItem) => {
+		const raw = item as any
+		const realItem = getRawItem(item)
+
+		return String(
+			raw.menu_item_id ||
+				raw.menuItemId ||
+				raw.product_id ||
+				raw.item_id ||
+				realItem.id ||
+				raw.id,
+		)
+	}
+
+	const getItemTitle = (item: IMenuItem) => {
+		const raw = item as any
+		const realItem = getRawItem(item)
+
+		return String(
+			realItem.title ||
+				realItem.name ||
+				raw.title ||
+				raw.name ||
+				'Без названия',
+		)
+	}
+
+	const getCategoryType = (item: IMenuItem) => {
+		const raw = item as any
+		const realItem = getRawItem(item)
+
+		return (
+			realItem.categories?.type ||
+			realItem.category?.type ||
+			raw.categories?.type ||
+			raw.category?.type ||
+			null
+		)
+	}
+
+	const getItemQuantity = (item: IMenuItem) => {
+		const raw = item as any
+		const realItem = getRawItem(item)
+
+		const values = [
+			raw.quantity,
+			raw.qty,
+			raw.count,
+			raw.amount,
+
+			raw.order_quantity,
+			raw.order_qty,
+			raw.order_count,
+
+			raw.item_quantity,
+			raw.item_qty,
+			raw.menu_quantity,
+
+			raw.order_item?.quantity,
+			raw.order_item?.qty,
+			raw.order_item?.count,
+
+			raw.orderItem?.quantity,
+			raw.orderItem?.qty,
+			raw.orderItem?.count,
+
+			raw.pivot?.quantity,
+			raw.pivot?.qty,
+			raw.pivot?.count,
+			raw.pivot?.amount,
+
+			realItem.quantity,
+			realItem.qty,
+			realItem.count,
+			realItem.amount,
+		]
+
+		const found = values.find((value) => {
+			const numberValue = Number(value)
+			return Number.isFinite(numberValue) && numberValue > 0
+		})
+
+		return found ? Number(found) : 1
+	}
+
 	const getKitchenItems = (order: IOrderRow): IMenuItem[] => {
 		return (order.items || []).filter(
-			(item) => item.categories?.type !== 'assembly',
+			(item) => getCategoryType(item) !== 'assembly',
 		)
 	}
 
 	const getAssemblyItems = (order: IOrderRow): IMenuItem[] => {
 		return (order.items || []).filter(
-			(item) => item.categories?.type === 'assembly',
+			(item) => getCategoryType(item) === 'assembly',
 		)
 	}
 
@@ -63,16 +153,17 @@ const AssemblyMonitor = () => {
 		const map = new Map<string, TGroupedItem>()
 
 		items.forEach((item) => {
-			const qty = item.quantity || 1
-			const key = `${source}:${item.id}`
+			const qty = getItemQuantity(item)
+			const id = getItemId(item)
+			const key = `${source}:${id}`
 			const existing = map.get(key)
 
 			if (existing) {
 				existing.quantity += qty
 			} else {
 				map.set(key, {
-					id: item.id,
-					title: item.title,
+					id,
+					title: getItemTitle(item),
 					quantity: qty,
 					source,
 				})
@@ -234,12 +325,10 @@ const AssemblyMonitor = () => {
 
 			if (nextIndex === undefined) return
 
-			const nextProgress = [
+			await updateAssemblyProgress(order, [
 				...current,
 				getProgressUnitKey(item.source, item.id, nextIndex),
-			]
-
-			await updateAssemblyProgress(order, nextProgress)
+			])
 		} catch (err) {
 			console.error('Ошибка добавления позиции:', err)
 			alert('Не удалось обновить сборку')
@@ -284,11 +373,14 @@ const AssemblyMonitor = () => {
 
 			const current = order.assembly_progress || []
 
-			const keysToAdd = Array.from({ length: item.quantity }, (_, index) =>
+			const allItemKeys = Array.from({ length: item.quantity }, (_, index) =>
 				getProgressUnitKey(item.source, item.id, index),
 			)
 
-			const nextProgress = Array.from(new Set([...current, ...keysToAdd]))
+			const nextProgress = [
+				...current.filter((key) => !allItemKeys.includes(key)),
+				...allItemKeys,
+			]
 
 			await updateAssemblyProgress(order, nextProgress)
 		} catch (err) {

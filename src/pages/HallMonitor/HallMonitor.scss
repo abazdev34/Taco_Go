@@ -72,154 +72,6 @@
 }
 
 .hall-number--active {
-  animation: pulse 0.8s infinite alternate;
-}
-
-@keyframes pulse {
-  from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(1.08);
-  }
-}
-
-.hall-empty {
-  margin-top: 20px;
-  font-size: 28px;
-  opacity: 0.7;
-}
-
-/* RIGHT SIDE (FOOD) */
-.hall-food {
-  position: relative;
-  height: 100%;
-  padding: 26px;
-  overflow: hidden;
-
-  background:
-    linear-gradient(180deg, rgba(255, 180, 20, 0.95), rgba(220, 60, 10, 0.95)),
-    url("https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80");
-
-  background-size: cover;
-  background-position: center;
-}
-
-/* FOOD SLIDE */
-.hall-food-slide {
-  height: 100%;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  animation: slide 5s ease-in-out;
-}
-
-@keyframes slide {
-  0% {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  20% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  80% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-40px);
-  }
-}
-
-.hall-food-slide img {
-  align-self: center;
-  justify-self: center;
-  width: min(80%, 420px);
-  max-height: 45vh;
-  object-fit: contain;
-}
-
-/* FOOD TEXT */
-.hall-food-info {
-  text-align: center;
-
-  h3 {
-    margin: 0;
-    font-size: clamp(28px, 3vw, 54px);
-    font-weight: 300;
-    letter-spacing: -0.05em;
-  }
-
-  strong {
-    display: inline-block;
-    margin-top: 12px;
-    padding: 8px 18px;
-    border-radius: 999px;
-    background: #ffffff;
-    color: #c83808;
-    font-size: clamp(20px, 2.5vw, 36px);
-  }
-}
-
-/* ALERT */
-.hall-ready-alert {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 26px;
-  border-radius: 999px;
-  background: #39f174;
-  color: #052a10;
-  font-size: 20px;
-  font-weight: 500;
-}
-
-/* ERROR */
-.hall-error {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 20px;
-  background: red;
-  border-radius: 12px;
-}
-
-/* TABLET */
-@media (max-width: 1024px) {
-  .hall-screen {
-    grid-template-columns: 1fr;
-  }
-
-  .hall-food {
-    height: 420px;
-  }
-
-  .hall-food-slide img {
-    max-height: 260px;
-  }
-}
-
-/* MOBILE */
-@media (max-width: 640px) {
-  .hall-orders {
-    grid-template-columns: 1fr;
-  }
-
-  .hall-number {
-    font-size: 60px;
-  }
-
-  .hall-food {
-    height: 360px;
-  }
-
-  .hall-food-slide img {
-    max-height: 200px;
-  }
-}
-.hall-number--active {
   animation: numberReadyPop 0.9s ease-in-out infinite alternate;
 }
 
@@ -239,34 +91,32 @@
   }
 }
 
-.hall-ready-alert {
-  z-index: 99;
-  animation: readyBanner 0.35s ease, readyBannerGlow 1s ease-in-out infinite alternate;
+.hall-empty {
+  margin-top: 20px;
+  font-size: 28px;
+  opacity: 0.7;
 }
 
-@keyframes readyBanner {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -20px) scale(0.9);
-  }
+/* RIGHT SIDE (FOOD) */
+.hall-food {
+  position: relative;
+  height: 100%;
+  padding: 10px; /* боштук азайтылды */
+  overflow: hidden;
 
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
+  background:
+    linear-gradient(180deg, rgba(255, 180, 20, 0.95), rgba(220, 60, 10, 0.95)),
+    url("https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80");
+
+  background-size: cover;
+  background-position: center;
 }
 
-@keyframes readyBannerGlow {
-  from {
-    box-shadow: 0 14px 40px rgba(57, 241, 116, 0.35);
-  }
-
-  to {
-    box-shadow: 0 20px 70px rgba(57, 241, 116, 0.75);
-  }
-}
-
+/* FOOD SLIDE */
 .hall-food-slide {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
   animation: foodPremiumSlide 5s ease-in-out both;
 }
 
@@ -292,10 +142,87 @@
   }
 }
 
+/* СҮРӨТ */
 .hall-food-slide img {
+  align-self: center;
+  justify-self: center;
+  width: min(96%, 620px); /* чоңойтулду */
+  max-height: 68vh;
+  object-fit: contain;
+
+  border-radius: 10%; /* МЫНА НЕГИЗГИ ӨЗГӨРҮҮ */
   filter: drop-shadow(0 26px 34px rgba(65, 20, 0, 0.45));
 }
 
-.hall-food-info strong {
-  box-shadow: 0 14px 30px rgba(80, 20, 0, 0.28);
+/* FOOD TEXT */
+.hall-food-info {
+  text-align: center;
+
+  h3 {
+    margin: 0;
+    font-size: clamp(28px, 3vw, 54px);
+    font-weight: 300;
+    letter-spacing: -0.05em;
+  }
+
+  strong {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #c83808;
+    font-size: clamp(20px, 2.5vw, 36px);
+    box-shadow: 0 14px 30px rgba(80, 20, 0, 0.28);
+  }
+}
+
+/* ALERT — ӨЧҮРҮЛДҮ */
+.hall-ready-alert {
+  display: none;
+}
+
+/* ERROR */
+.hall-error {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  background: red;
+  border-radius: 12px;
+}
+
+/* TABLET */
+@media (max-width: 1024px) {
+  .hall-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .hall-food {
+    height: 420px;
+  }
+
+  .hall-food-slide img {
+    max-height: 340px;
+  }
+}
+
+/* MOBILE */
+@media (max-width: 640px) {
+  .hall-orders {
+    grid-template-columns: 1fr;
+  }
+
+  .hall-number {
+    font-size: 60px;
+  }
+
+  .hall-food {
+    height: 360px;
+  }
+
+  .hall-food-slide img {
+    max-height: 290px;
+  }
 }
