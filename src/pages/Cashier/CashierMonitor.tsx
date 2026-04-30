@@ -34,7 +34,10 @@ type TCategory = {
 type TMenuItem = IMenuItem & {
   categories?: TCategory | null
   quantity?: number
+  order_quantity?: number
 }
+
+const getOrderItemQty = (item: any) => Number(item?.order_quantity || 1)
 
 function CashierMonitor() {
   const [activeTab, setActiveTab] = useState<TTab>('accept')
@@ -160,14 +163,14 @@ function CashierMonitor() {
   )
 
   const totalItems = useMemo(
-    () => cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
+    () => cart.reduce((sum, item) => sum + getOrderItemQty(item), 0),
     [cart]
   )
 
   const totalSum = useMemo(
     () =>
       cart.reduce(
-        (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1),
+        (sum, item) => sum + Number(item.price || 0) * getOrderItemQty(item),
         0
       ),
     [cart]
@@ -204,12 +207,27 @@ function CashierMonitor() {
       const existing = prev.find(p => p.id === item.id)
 
       if (existing) {
-        return prev.map(p =>
-          p.id === item.id ? { ...p, quantity: Number(p.quantity || 1) + 1 } : p
-        )
+        return prev.map(p => {
+          if (p.id !== item.id) return p
+
+          const currentQty = getOrderItemQty(p)
+
+          return {
+            ...p,
+            quantity: currentQty + 1,
+            order_quantity: currentQty + 1,
+          }
+        })
       }
 
-      return [...prev, { ...item, quantity: 1 }]
+      return [
+        ...prev,
+        {
+          ...item,
+          quantity: 1,
+          order_quantity: 1,
+        },
+      ]
     })
 
     playCartAnimation()
@@ -218,10 +236,19 @@ function CashierMonitor() {
   const removeFromCart = (item: TMenuItem) => {
     setCart(prev =>
       prev
-        .map(p =>
-          p.id === item.id ? { ...p, quantity: Number(p.quantity || 1) - 1 } : p
-        )
-        .filter(p => Number(p.quantity || 0) > 0)
+        .map(p => {
+          if (p.id !== item.id) return p
+
+          const currentQty = getOrderItemQty(p)
+          const nextQty = currentQty - 1
+
+          return {
+            ...p,
+            quantity: nextQty,
+            order_quantity: nextQty,
+          }
+        })
+        .filter(p => getOrderItemQty(p) > 0)
     )
   }
 
@@ -234,6 +261,17 @@ function CashierMonitor() {
     setOrderMode('hall')
   }
 
+  const buildCartSnapshot = () =>
+    cart.map(item => {
+      const orderQuantity = getOrderItemQty(item)
+
+      return {
+        ...item,
+        quantity: orderQuantity,
+        order_quantity: orderQuantity,
+      }
+    })
+
   const handleCreateOrder = async () => {
     if (!cart.length || submitting) return
 
@@ -242,12 +280,17 @@ function CashierMonitor() {
       return
     }
 
-    const cartSnapshot = [...cart]
-    const totalSnapshot = totalSum
+    const cartSnapshot = buildCartSnapshot()
+    const totalSnapshot = cartSnapshot.reduce(
+      (sum, item) => sum + Number(item.price || 0) * getOrderItemQty(item),
+      0
+    )
+
     const paymentSnapshot = paymentMethod
     const orderModeSnapshot = orderMode
     const cashSnapshot = cashReceivedNumber
-    const changeSnapshot = changeAmount
+    const changeSnapshot =
+      paymentSnapshot === 'cash' ? Math.max(cashSnapshot - totalSnapshot, 0) : 0
     const commentSnapshot = comment
     const cashierSnapshot = cashierName.trim() || 'Кассир'
 
@@ -282,8 +325,10 @@ function CashierMonitor() {
 
       const mergedOrder = {
         ...saved,
+        items: cartSnapshot,
+        total: totalSnapshot,
         status: flow.status,
-        cashier_status: flow.cashier_status,
+        cashier_status: null,
         payment_method: paymentSnapshot,
         paid_amount: paymentSnapshot === 'cash' ? cashSnapshot : totalSnapshot,
         change_amount: paymentSnapshot === 'cash' ? changeSnapshot : 0,
@@ -301,7 +346,7 @@ function CashierMonitor() {
 
       await updateCashierOrder(saved.id, {
         status: flow.status as any,
-        cashier_status: flow.cashier_status as any,
+        cashier_status: null,
         payment_method: paymentSnapshot,
         paid_amount: paymentSnapshot === 'cash' ? cashSnapshot : totalSnapshot,
         change_amount: paymentSnapshot === 'cash' ? changeSnapshot : 0,
@@ -335,7 +380,7 @@ function CashierMonitor() {
       const updated = {
         ...order,
         status: 'new',
-        cashier_status: 'new',
+        cashier_status: null,
         payment_method: payment,
         paid_amount: payment === 'online' ? Number(order.total || 0) : order.paid_amount,
         cashier_name: cashierName.trim() || 'Кассир',
@@ -348,7 +393,7 @@ function CashierMonitor() {
 
       await updateCashierOrder(id, {
         status: 'new',
-        cashier_status: 'new',
+        cashier_status: null,
         payment_method: payment,
         paid_amount: payment === 'online' ? Number(order.total || 0) : order.paid_amount,
         cashier_name: cashierName.trim() || 'Кассир',
@@ -416,7 +461,7 @@ function CashierMonitor() {
       const updated = {
         ...order,
         status: 'completed',
-        cashier_status: 'issued',
+        cashier_status: null,
         cashier_name: cashierName.trim() || 'Кассир',
         paid_at: paidAt,
       } as IOrderRow
@@ -427,7 +472,7 @@ function CashierMonitor() {
 
       await updateCashierOrder(id, {
         status: 'completed',
-        cashier_status: 'issued',
+        cashier_status: null,
         cashier_name: cashierName.trim() || 'Кассир',
         paid_at: paidAt,
       })
@@ -558,12 +603,18 @@ function CashierMonitor() {
     }
   }
 
-  const renderOrders = (list: IOrderRow[], mode: 'new' | 'preparing' | 'ready') => {
-    if (!list.length) return <div className='cashier-empty-box'>Пусто</div>
+ const renderOrders = (list: IOrderRow[], mode: 'new' | 'preparing' | 'ready') => {
+  if (!list.length) return <div className='cashier-empty-box'>Пусто</div>
 
-    return (
-      <div className='cashier-orders-grid'>
-        {list.map(order => (
+  return (
+    <div className='cashier-orders-grid'>
+      {list.map(order => {
+        const orderItems = ((order as any).items || []) as TMenuItem[]
+        const payment = getOrderPaymentMethodValue(order)
+        const paidAmount = Number((order as any).paid_amount || 0)
+        const changeAmountValue = Number((order as any).change_amount || 0)
+
+        return (
           <article className='cashier-order-card' key={order.id}>
             <div className='cashier-order-card__head'>
               <div>
@@ -581,13 +632,52 @@ function CashierMonitor() {
                 <span>Сумма</span>
                 <strong>{formatPrice(Number(order.total || 0))}</strong>
               </div>
+
               <div>
                 <span>Оплата</span>
-                <strong>
-                  {getOrderPaymentMethodValue(order) === 'cash' ? 'Наличные' : 'Онлайн'}
-                </strong>
+                <strong>{payment === 'cash' ? 'Наличные' : 'Онлайн'}</strong>
               </div>
+
+              {payment === 'cash' && (
+                <>
+                  <div>
+                    <span>Получено</span>
+                    <strong>{formatPrice(paidAmount)}</strong>
+                  </div>
+
+                  <div>
+                    <span>Сдача</span>
+                    <strong>{formatPrice(changeAmountValue)}</strong>
+                  </div>
+                </>
+              )}
             </div>
+
+            {orderItems.length > 0 && (
+              <div className='cashier-order-details'>
+                <strong>Детали заказа</strong>
+
+                {orderItems.map((item, index) => {
+                  const price = Number(item.price || 0)
+                  const total = Number(order.total || 0)
+                  const rawQty = Number((item as any).order_quantity || item.quantity || 1)
+
+                  const qty =
+                    orderItems.length === 1 && price > 0 && rawQty * price !== total
+                      ? Math.max(Math.round(total / price), 1)
+                      : rawQty
+
+                  return (
+                    <div className='cashier-order-details__row' key={item.id || index}>
+                      <span>
+                        {item.title} × {qty} шт
+                      </span>
+                      <b>{formatPrice(price * qty)}</b>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             <div className='cashier-order-card__actions'>
               <button
@@ -611,11 +701,11 @@ function CashierMonitor() {
               )}
             </div>
           </article>
-        ))}
-      </div>
-    )
-  }
-
+        )
+      })}
+    </div>
+  )
+}
   return (
     <div className='cashier-monitor-page'>
       <div className='cashier-shell'>

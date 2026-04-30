@@ -31,6 +31,18 @@ const ORDER_SELECT_FIELDS = `
   paid_at
 `;
 
+const normalizeOrderItems = (items: any[]) => {
+  return items.map((item: any) => {
+    const qty = Number(item.order_quantity || item.cart_quantity || 1);
+
+    return {
+      ...item,
+      quantity: qty,
+      order_quantity: qty,
+    };
+  });
+};
+
 const normalizeOrder = (order: any): IOrderRow => {
   return {
     ...order,
@@ -127,7 +139,18 @@ async function getNextDailyOrderNumber(): Promise<number> {
 export async function createOrder(
   payload: ICreateOrderPayload
 ): Promise<IOrderRow> {
-  const items = Array.isArray(payload.items) ? payload.items : [];
+  const items = Array.isArray(payload.items)
+    ? normalizeOrderItems(payload.items)
+    : [];
+
+  const fixedTotal =
+    Number(payload.total || 0) > 0
+      ? Number(payload.total || 0)
+      : items.reduce(
+          (sum: number, item: any) =>
+            sum + Number(item.price || 0) * Number(item.order_quantity || item.quantity || 1),
+          0
+        );
 
   const hasKitchen = items.some(
     (item: any) => item?.categories?.type !== "assembly"
@@ -153,7 +176,7 @@ export async function createOrder(
   const insertPayload: Record<string, any> = {
     ...payload,
     items,
-    total: Number(payload.total ?? 0),
+    total: fixedTotal,
     comment: payload.comment?.trim() || null,
     source: payload.source ?? "client",
     status: resolvedStatus,

@@ -21,16 +21,28 @@ export const formatDailyOrderNumber = (order: IOrderRow, allOrders: IOrderRow[])
 }
 
 export const resolveCashierCreatedOrderStatus = (items: any[]) => {
-  const hasKitchenItems = items.some(item => item.categories?.type === 'kitchen')
   const hasAssemblyItems = items.some(item => item.categories?.type === 'assembly')
+  const hasKitchenItems = items.some(item => item.categories?.type !== 'assembly')
 
-  if (!hasKitchenItems && hasAssemblyItems) {
-    return { status: 'preparing', cashier_status: 'assembly', assembly_progress: [] }
+  if (hasKitchenItems) {
+    return {
+      status: 'new',
+      cashier_status: null,
+      assembly_progress: [],
+    }
   }
 
-  if (!hasKitchenItems) {
-    return { status: 'preparing', cashier_status: 'assembly', assembly_progress: [] }
+  if (hasAssemblyItems) {
+    return {
+      status: 'preparing',
+      cashier_status: null,
+      assembly_progress: [],
+    }
   }
 
-  return { status: 'new', cashier_status: 'new', assembly_progress: [] }
+  return {
+    status: 'new',
+    cashier_status: null,
+    assembly_progress: [],
+  }
 }

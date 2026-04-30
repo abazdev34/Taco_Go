@@ -1,268 +1,163 @@
 .hall-monitor {
-  width: 100%;
+  width: 100vw;
   height: 100vh;
   overflow: hidden;
   background: #0b0300;
   color: #ffffff;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Inter, sans-serif;
 }
 
+/* ТВ layout */
 .hall-screen {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34vw;
-  overflow: hidden;
+  grid-template-columns: 1fr 38vw;
 }
 
+/* СОЛ ЖАК — заказдар */
 .hall-orders {
   display: grid;
   grid-template-columns: 1fr 1fr;
   height: 100%;
-  min-height: 0;
 }
 
+/* колонка */
 .hall-order-column {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  padding: 40px;
   overflow: hidden;
-  padding: 24px 30px;
 }
 
+/* заголовок */
 .hall-order-column h2 {
   margin: 0;
-  padding-bottom: 12px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.28);
-  font-size: clamp(30px, 3vw, 50px);
+  padding-bottom: 20px;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.25);
+
+  font-size: 64px;
   font-weight: 300;
-  letter-spacing: -0.055em;
+  letter-spacing: -0.05em;
   text-transform: uppercase;
-  line-height: 1;
-  flex-shrink: 0;
 }
 
+/* фон */
 .hall-order-column--preparing {
-  background: linear-gradient(135deg, #2a1500 0%, #8b4d00 100%);
+  background: linear-gradient(135deg, #2a1500, #8b4d00);
 }
 
 .hall-order-column--ready {
-  background: linear-gradient(135deg, #063516 0%, #008f45 100%);
+  background: linear-gradient(135deg, #063516, #008f45);
 }
 
+/* номерлер */
 .hall-number-list {
   flex: 1;
-  min-height: 0;
-  padding-top: 18px;
-
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 32px;
+  gap: 20px 40px;
   align-content: flex-start;
-  align-items: flex-start;
-
+  padding-top: 30px;
   overflow: hidden;
 }
 
+/* 🔥 ТВ чоң цифра */
 .hall-number {
-  display: inline-block;
-  line-height: 0.82;
-  font-size: clamp(70px, 5.8vw, 110px);
+  font-size: clamp(90px, 7vw, 150px);
   font-weight: 300;
-  letter-spacing: -0.085em;
-  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: -0.08em;
 }
 
+/* готов */
 .hall-number--ready {
   color: #7cffb0;
-  text-shadow: 0 0 14px rgba(0, 255, 120, 0.55);
+  text-shadow: 0 0 20px rgba(0, 255, 120, 0.6);
 }
 
+/* анимация */
 .hall-number--active {
-  animation: numberReadyPop 0.9s ease-in-out infinite alternate;
-  transform-origin: left center;
+  animation: pulse 1s infinite alternate;
 }
 
-@keyframes numberReadyPop {
+@keyframes pulse {
   0% {
     transform: scale(1);
-    filter: brightness(1);
   }
-
   100% {
-    transform: scale(1.04);
-    filter: brightness(1.18);
+    transform: scale(1.05);
   }
 }
 
-.hall-empty {
-  margin-top: 12px;
-  font-size: 24px;
-  opacity: 0.65;
-}
-
+/* оң жак — баннер */
 .hall-food {
   position: relative;
-  height: 100%;
-  min-height: 0;
   padding: 5%;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 
   background:
-    linear-gradient(180deg, rgba(255, 180, 20, 0.95), rgba(220, 60, 10, 0.95)),
-    url("https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80");
+    linear-gradient(180deg, rgba(255, 180, 20, 0.9), rgba(220, 60, 10, 0.9)),
+    url("https://images.unsplash.com/photo-1568901346375-23c9450c58cd");
 
   background-size: cover;
   background-position: center;
 }
 
+/* слайд */
 .hall-food-slide {
   height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  animation: foodPremiumSlide 5s ease-in-out both;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  animation: slide 6s ease-in-out both;
 }
 
-@keyframes foodPremiumSlide {
-  0% {
-    opacity: 0;
-    transform: translateY(36px) scale(0.97);
-  }
-
-  14% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  84% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translateY(-36px) scale(0.97);
-  }
+@keyframes slide {
+  0% { opacity: 0; transform: translateY(40px); }
+  15% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-40px); }
 }
 
+/* сүрөт */
 .hall-food-slide img {
-  align-self: center;
-  justify-self: center;
-
   width: 100%;
-  height: min(68vh, 100%);
-  max-height: 68vh;
-
+  height: 65vh;
   object-fit: cover;
-  object-position: center;
-  border-radius: 10%;
-  filter: drop-shadow(0 22px 30px rgba(65, 20, 0, 0.42));
+  border-radius: 40px;
 }
 
+/* текст */
 .hall-food-info {
   text-align: center;
-  padding-top: 10px;
-  padding-bottom: 6px;
 }
 
 .hall-food-info h3 {
+  font-size: 48px;
   margin: 0;
-  font-size: clamp(24px, 2.4vw, 44px);
-  font-weight: 300;
-  letter-spacing: -0.045em;
-  line-height: 1;
 }
 
 .hall-food-info strong {
+  margin-top: 20px;
   display: inline-block;
-  margin-top: 10px;
-  padding: 7px 16px;
-  border-radius: 999px;
-  background: #ffffff;
+  padding: 12px 24px;
+  background: white;
   color: #c83808;
-  font-size: clamp(18px, 1.9vw, 30px);
-  line-height: 1;
-  box-shadow: 0 12px 24px rgba(80, 20, 0, 0.24);
+  border-radius: 50px;
+  font-size: 32px;
 }
 
-.hall-ready-alert {
-  display: none;
-}
-
-.hall-error {
-  position: fixed;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 16px;
-  background: red;
-  border-radius: 10px;
-  z-index: 20;
-}
-
-@media (max-width: 1024px) {
+/* мобил адаптация */
+@media (max-width: 1200px) {
   .hall-screen {
     grid-template-columns: 1fr;
   }
 
   .hall-food {
     height: 400px;
-  }
-
-  .hall-food-slide img {
-    height: 280px;
-    max-height: 280px;
-  }
-}
-
-@media (max-width: 640px) {
-  .hall-orders {
-    grid-template-columns: 1fr;
-  }
-
-  .hall-order-column {
-    padding: 18px 20px;
-  }
-
-  .hall-number-list {
-    gap: 8px 22px;
-    padding-top: 12px;
-  }
-
-  .hall-number {
-    font-size: 58px;
-  }
-
-  .hall-food {
-    height: 340px;
-  }
-
-  .hall-food-slide img {
-    height: 230px;
-    max-height: 230px;
-  }
-}
-.hall-number-list {
-  overflow: hidden;
-  position: relative;
-}
-
-.hall-number-list::after {
-  content: "";
-  flex-basis: 100%;
-}
-
-.hall-number-list {
-  animation: hallOrdersSlowScroll 18s linear infinite alternate;
-}
-
-@keyframes hallOrdersSlowScroll {
-  0% {
-    transform: translateY(0);
-  }
-
-  100% {
-    transform: translateY(-35%);
   }
 }

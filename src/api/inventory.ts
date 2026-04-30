@@ -92,6 +92,28 @@ export const upsertInventoryBalances = async (
   return data as TInventoryBalance[];
 };
 
+export const deleteInventoryBalance = async (id: string) => {
+  const { error } = await supabase
+    .from("inventory_balances")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+};
+
+export const deleteInventoryBalanceByNameUnit = async (
+  name: string,
+  unit: string
+) => {
+  const { error } = await supabase
+    .from("inventory_balances")
+    .delete()
+    .eq("name", name)
+    .eq("unit", unit);
+
+  if (error) throw error;
+};
+
 export const fetchInventoryReports = async () => {
   const { data, error } = await supabase
     .from("inventory_reports")

@@ -6,6 +6,7 @@ import {
   updateTechCard,
 } from "../../api/techCards";
 import { fetchMenuItems } from "../../api/menuItems";
+import { deleteInventoryBalanceByNameUnit } from "../../api/inventory";
 import { formatPrice } from "../../utils/currency";
 import "./TechCardsPage.scss";
 
@@ -30,6 +31,21 @@ const makeIngredient = (): Ingredient => ({
   pieceWeight: "",
   cost: 0,
 });
+
+const getIngredientKey = (item: any) =>
+  `${String(item?.name || "")
+    .trim()
+    .toLowerCase()}__${String(item?.unit || "").trim()}`;
+
+const isIngredientUsedInCards = (ingredient: any, cards: any[]) => {
+  const key = getIngredientKey(ingredient);
+
+  return cards.some((card) =>
+    (card.ingredients || []).some(
+      (item: any) => getIngredientKey(item) === key
+    )
+  );
+};
 
 function TechCardsPage() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -61,6 +77,27 @@ function TechCardsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const cleanupUnusedIngredients = async (
+    removedIngredients: any[],
+    activeCards: any[]
+  ) => {
+    const uniqueIngredients = removedIngredients.filter(
+      (item, index, arr) =>
+        item?.name &&
+        item?.unit &&
+        arr.findIndex(
+          (other) => getIngredientKey(other) === getIngredientKey(item)
+        ) === index
+    );
+
+    await Promise.all(
+      uniqueIngredients.map(async (item) => {
+        if (isIngredientUsedInCards(item, activeCards)) return;
+        await deleteInventoryBalanceByNameUnit(item.name, item.unit);
+      })
+    );
+  };
 
   const isValidIngredient = (item: Ingredient) => {
     return (
@@ -260,6 +297,29 @@ function TechCardsPage() {
     try {
       setLoading(true);
 
+      const payloadIngredients = validIngredients.map((item) => ({
+        name: item.name.trim(),
+        unit: item.unit,
+        quantity: Number(item.quantity || 0),
+        unit_price: Number(item.unitPrice || 0),
+        piece_weight: item.unit === "шт" ? Number(item.pieceWeight || 0) : 0,
+        cost: item.cost,
+      }));
+
+      const oldCard = editingId
+        ? cards.find((card) => card.id === editingId)
+        : null;
+
+      const oldIngredients = oldCard?.ingredients || [];
+
+      const removedIngredients = oldIngredients.filter(
+        (oldItem: any) =>
+          !payloadIngredients.some(
+            (newItem: any) =>
+              getIngredientKey(newItem) === getIngredientKey(oldItem)
+          )
+      );
+
       const payload = {
         menu_item_id: selectedFood.id,
         total_cost: +totalCost.toFixed(2),
@@ -269,19 +329,22 @@ function TechCardsPage() {
         total_weight: +totalWeight.toFixed(3),
         total_liters: +totalLiters.toFixed(3),
         total_pieces: totalPieces,
-
-        ingredients: validIngredients.map((item) => ({
-          name: item.name.trim(),
-          unit: item.unit,
-          quantity: Number(item.quantity || 0),
-          unit_price: Number(item.unitPrice || 0),
-          piece_weight: item.unit === "шт" ? Number(item.pieceWeight || 0) : 0,
-          cost: item.cost,
-        })),
+        ingredients: payloadIngredients,
       };
 
       if (editingId) {
         await updateTechCard(editingId, payload);
+
+        const activeCardsAfterUpdate = cards.map((card) =>
+          card.id === editingId
+            ? { ...card, ingredients: payloadIngredients }
+            : card
+        );
+
+        await cleanupUnusedIngredients(
+          removedIngredients,
+          activeCardsAfterUpdate
+        );
       } else {
         await createTechCard(payload);
       }
@@ -300,13 +363,30 @@ function TechCardsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Удалить техкарту?")) return;
 
-    await deleteTechCard(id);
+    try {
+      setLoading(true);
 
-    if (openedCardId === id) {
-      setOpenedCardId(null);
+      const deletingCard = cards.find((card) => card.id === id);
+      const deletingIngredients = deletingCard?.ingredients || [];
+      const activeCardsAfterDelete = cards.filter((card) => card.id !== id);
+
+      await deleteTechCard(id);
+
+      await cleanupUnusedIngredients(
+        deletingIngredients,
+        activeCardsAfterDelete
+      );
+
+      if (openedCardId === id) {
+        setOpenedCardId(null);
+      }
+
+      await load();
+    } catch (error: any) {
+      alert(error?.message || "Не удалось удалить техкарту");
+    } finally {
+      setLoading(false);
     }
-
-    await load();
   };
 
   const openedCard = cards.find((card) => card.id === openedCardId);
@@ -463,8 +543,9 @@ function TechCardsPage() {
               type="button"
               className="danger"
               onClick={() => handleDelete(openedCard.id)}
+              disabled={loading}
             >
-              Удалить
+              {loading ? "Удаляется..." : "Удалить"}
             </button>
           </div>
         </section>

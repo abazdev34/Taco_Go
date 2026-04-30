@@ -3,9 +3,10 @@ import { InventoryRow } from "../TechInventoryPage";
 type Props = {
   rows: InventoryRow[];
   formatQty: (value: number, unit: string) => string;
+  onDelete?: (row: InventoryRow) => void;
 };
 
-function InventoryStateTable({ rows, formatQty }: Props) {
+function InventoryStateTable({ rows, formatQty, onDelete }: Props) {
   return (
     <div className="inventory-table-scroll">
       <table className="inventory-table inventory-table--state">
@@ -14,13 +15,14 @@ function InventoryStateTable({ rows, formatQty }: Props) {
             <th>Продукт</th>
             <th>Ед.</th>
             <th>Остаток</th>
+            <th>Действие</th>
           </tr>
         </thead>
 
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={3} className="inventory-empty">
+              <td colSpan={4} className="inventory-empty">
                 Товары не найдены
               </td>
             </tr>
@@ -43,6 +45,16 @@ function InventoryStateTable({ rows, formatQty }: Props) {
                   }
                 >
                   {formatQty(row.systemLeft, row.unit)}
+                </td>
+
+                <td>
+                  <button
+                    type="button"
+                    className="inventory-delete-btn"
+                    onClick={() => onDelete?.(row)}
+                  >
+                    Удалить
+                  </button>
                 </td>
               </tr>
             ))

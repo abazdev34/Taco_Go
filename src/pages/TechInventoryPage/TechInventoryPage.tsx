@@ -47,6 +47,12 @@ export type InventoryRow = {
   systemLeft: number;
 };
 
+function toNumber(value: any) {
+  const normalized = String(value ?? "").replace(",", ".").trim();
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function getIngredientName(item: any) {
   return item?.name || item?.title || item?.ingredient_name || "Без названия";
 }
@@ -56,11 +62,40 @@ function getIngredientUnit(item: any) {
 }
 
 function getIngredientQty(item: any) {
-  return Number(item?.quantity || 0);
+  return toNumber(item?.quantity);
+}
+
+function getFoodQty(food: any, order?: any) {
+  const rawQty =
+    food?.order_quantity ??
+    food?.cart_quantity ??
+    food?.cartQuantity ??
+    food?.qty ??
+    food?.count ??
+    food?.quantity;
+
+  const qty = toNumber(rawQty);
+
+  if (qty > 1) return qty;
+
+  const orderItems = Array.isArray(order?.items) ? order.items : [];
+  const price = toNumber(food?.price);
+  const total = toNumber(order?.total);
+
+  if (orderItems.length === 1 && price > 0 && total > price) {
+    return Math.max(Math.round(total / price), 1);
+  }
+
+  return qty > 0 ? qty : 1;
 }
 
 export function normalizeKey(name: string, unit: string) {
-  return `${name.trim().toLowerCase()}__${unit}`;
+  return `${String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")}__${String(unit || "")
+    .trim()
+    .toLowerCase()}`;
 }
 
 export function formatQty(value: number, unit: string) {
@@ -124,13 +159,6 @@ function isOperationInPeriod(operation: TInventoryOperation, period: Period) {
   return time >= range.start && time <= range.end;
 }
 
-/**
- * Списание со склада делаем только тогда,
- * когда заказ перешёл в статус "готов".
- *
- * Если в твоём проекте статус называется иначе,
- * добавь его в массив readyStatuses.
- */
 function isOrderReadyForInventory(order: any) {
   const status = String(
     order.status ||
@@ -197,6 +225,30 @@ function TechInventoryPage() {
     void load();
   }, []);
 
+  const existsInTechCards = (name: string, unit: string) => {
+    const key = normalizeKey(name, unit);
+
+    return techCards.some((card) =>
+      (card.ingredients || []).some(
+        (ing: any) =>
+          normalizeKey(getIngredientName(ing), getIngredientUnit(ing)) === key
+      )
+    );
+  };
+
+  const findTechCardForFood = (food: any) => {
+    const ids = [
+      food?.id,
+      food?.menu_item_id,
+      food?.product_id,
+      food?.food_id,
+    ].filter(Boolean);
+
+    return techCards.find((card) =>
+      ids.some((id) => String(id) === String(card.menu_item_id))
+    );
+  };
+
   const productOptions = useMemo(() => {
     const map = new Map<string, { name: string; unit: string }>();
 
@@ -251,6 +303,8 @@ function TechInventoryPage() {
     };
 
     const ensureRow = (name: string, unit: string) => {
+      if (!existsInTechCards(name, unit)) return null;
+
       const key = normalizeKey(name, unit);
 
       if (!map.has(key)) {
@@ -259,7 +313,7 @@ function TechInventoryPage() {
         map.set(key, {
           name,
           unit,
-          baseQty: Number(balance?.quantity || 0),
+          baseQty: toNumber(balance?.quantity),
           receivedQty: 0,
           usedQty: 0,
           writeOffQty: 0,
@@ -287,13 +341,11 @@ function TechInventoryPage() {
         const orderTime = getOrderTime(order);
 
         (order.items || []).forEach((food: IMenuItem) => {
-          const techCard = techCards.find(
-            (card) => card.menu_item_id === food.id
-          );
+          const techCard = findTechCardForFood(food);
 
           if (!techCard) return;
 
-          const foodQty = Number(food.quantity || 1);
+          const foodQty = getFoodQty(food, order);
 
           (techCard.ingredients || []).forEach((ing: any) => {
             const name = getIngredientName(ing);
@@ -314,6 +366,8 @@ function TechInventoryPage() {
             }
 
             const row = ensureRow(name, unit);
+            if (!row) return;
+
             row.usedQty += getIngredientQty(ing) * foodQty;
           });
         });
@@ -323,11 +377,12 @@ function TechInventoryPage() {
       .filter((operation) => isOperationInPeriod(operation, period))
       .forEach((operation) => {
         const row = ensureRow(operation.name, operation.unit);
+        if (!row) return;
 
         if (operation.type === "received") {
-          row.receivedQty += Number(operation.quantity || 0);
+          row.receivedQty += toNumber(operation.quantity);
         } else {
-          row.writeOffQty += Number(operation.quantity || 0);
+          row.writeOffQty += toNumber(operation.quantity);
         }
       });
 
