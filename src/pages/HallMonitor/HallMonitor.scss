@@ -243,3 +243,26 @@
     max-height: 230px;
   }
 }
+.hall-number-list {
+  overflow: hidden;
+  position: relative;
+}
+
+.hall-number-list::after {
+  content: "";
+  flex-basis: 100%;
+}
+
+.hall-number-list {
+  animation: hallOrdersSlowScroll 18s linear infinite alternate;
+}
+
+@keyframes hallOrdersSlowScroll {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(-35%);
+  }
+}
