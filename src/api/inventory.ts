@@ -2,11 +2,23 @@ import { supabase } from "../lib/supabase";
 
 export type TInventoryOperationType = "received" | "writeOff";
 
+export type TInventoryProduct = {
+  id: string;
+  name: string;
+  category: string | null;
+  unit: string;
+  price: number;
+  is_active: boolean;
+  created_at: string;
+};
+
 export type TInventoryOperation = {
   id: string;
+  product_id?: string | null;
   name: string;
   unit: string;
   quantity: number;
+  price: number;
   type: TInventoryOperationType;
   created_at: string;
 };
@@ -27,6 +39,71 @@ export type TInventoryReport = {
   created_at: string;
 };
 
+export const fetchInventoryProducts = async () => {
+  const { data, error } = await supabase
+    .from("inventory_products")
+    .select("*")
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+
+  return ((data || []).filter((item) => item.is_active !== false) ||
+    []) as TInventoryProduct[];
+};
+
+export const createInventoryProduct = async (payload: {
+  name: string;
+  category?: string | null;
+  unit: string;
+  price?: number;
+}) => {
+  const { data, error } = await supabase
+    .from("inventory_products")
+    .insert({
+      name: payload.name.trim(),
+      category: payload.category || null,
+      unit: payload.unit,
+      price: payload.price || 0,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as TInventoryProduct;
+};
+
+export const updateInventoryProduct = async (
+  id: string,
+  payload: {
+    name?: string;
+    category?: string | null;
+    unit?: string;
+    price?: number;
+    is_active?: boolean;
+  }
+) => {
+  const { data, error } = await supabase
+    .from("inventory_products")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as TInventoryProduct;
+};
+
+export const deleteInventoryProduct = async (id: string) => {
+  const { error } = await supabase
+    .from("inventory_products")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) throw error;
+};
+
 export const fetchInventoryOperations = async () => {
   const { data, error } = await supabase
     .from("inventory_operations")
@@ -39,9 +116,11 @@ export const fetchInventoryOperations = async () => {
 
 export const createInventoryOperations = async (
   payload: {
+    product_id?: string | null;
     name: string;
     unit: string;
     quantity: number;
+    price?: number;
     type: TInventoryOperationType;
   }[]
 ) => {
@@ -51,6 +130,23 @@ export const createInventoryOperations = async (
     .select();
 
   if (error) throw error;
+
+  const receivedItems = payload.filter(
+    (item) =>
+      item.type === "received" &&
+      item.product_id &&
+      Number(item.price || 0) > 0
+  );
+
+  await Promise.all(
+    receivedItems.map((item) =>
+      supabase
+        .from("inventory_products")
+        .update({ price: item.price || 0 })
+        .eq("id", item.product_id)
+    )
+  );
+
   return data as TInventoryOperation[];
 };
 

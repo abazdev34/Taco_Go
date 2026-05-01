@@ -84,15 +84,72 @@
     border-color: #cbd5e1;
     box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
   }
+
+  &.active {
+    border-color: #16a34a;
+    background: #ecfdf5;
+  }
 }
 
-.tech-empty {
-  padding: 30px;
-  border-radius: 18px;
-  background: #f8fafc;
-  color: #64748b;
-  text-align: center;
-  font-weight: 700;
+.tech-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+
+  h2 {
+    margin-bottom: 4px;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+  }
+}
+
+.tech-close-table {
+  border: 0;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #111827;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.tech-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+
+  > div {
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  strong {
+    color: #111827;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .profit {
+    color: #16a34a;
+  }
 }
 
 .tech-table-wrap {
@@ -102,7 +159,7 @@
 .tech-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1100px;
+  min-width: 900px;
 
   th {
     background: #f8fafc;
@@ -124,53 +181,6 @@
   tr:hover td {
     background: #fbfdff;
   }
-
-  .profit {
-    color: #16a34a;
-    font-weight: 900;
-  }
-}
-
-.tech-mini-table-wrap {
-  width: 100%;
-  max-width: 560px;
-  overflow-x: auto;
-  border-radius: 14px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-}
-
-.tech-mini-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 520px;
-
-  th {
-    padding: 9px 10px;
-    background: #f1f5f9;
-    color: #475569;
-    font-size: 11px;
-    font-weight: 900;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  td {
-    padding: 9px 10px;
-    font-size: 12px;
-    color: #334155;
-    border-bottom: 1px solid #f1f5f9;
-    white-space: nowrap;
-  }
-
-  tr:last-child td {
-    border-bottom: 0;
-  }
-
-  strong {
-    color: #047857;
-    font-weight: 900;
-  }
 }
 
 .tech-table-actions {
@@ -189,7 +199,16 @@
     &.danger {
       background: #dc2626;
     }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
+}
+
+.tech-bottom-actions {
+  margin-top: 16px;
 }
 
 .tech-modal {
@@ -293,6 +312,12 @@
 
     &:focus {
       border-color: #111827;
+    }
+
+    &:disabled {
+      background: #f1f5f9;
+      color: #64748b;
+      cursor: not-allowed;
     }
   }
 }
@@ -443,6 +468,15 @@
   }
 }
 
+.tech-empty {
+  padding: 30px;
+  border-radius: 18px;
+  background: #f8fafc;
+  color: #64748b;
+  text-align: center;
+  font-weight: 700;
+}
+
 @media (max-width: 1100px) {
   .tech-ing-row,
   .tech-ing-row.has-piece-weight {
@@ -450,6 +484,12 @@
   }
 
   .tech-result-box {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .tech-summary-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -475,175 +515,8 @@
     margin: 0;
   }
 
-  .tech-result-box {
-    grid-template-columns: 1fr;
-  }
-}
-.tech-food-btn.active {
-  border-color: #16a34a;
-  background: #ecfdf5;
-}
-
-.tech-section-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 18px;
-
-  h2 {
-    margin-bottom: 4px;
-  }
-
-  p {
-    margin: 0;
-    color: #64748b;
-    font-size: 14px;
-  }
-}
-
-.tech-close-table {
-  border: 0;
-  border-radius: 12px;
-  background: #f1f5f9;
-  color: #111827;
-  padding: 10px 14px;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.tech-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-
-  > div {
-    border: 1px solid #e5e7eb;
-    background: #f8fafc;
-    border-radius: 16px;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  span {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  strong {
-    color: #111827;
-    font-size: 18px;
-    font-weight: 900;
-  }
-
-  .profit {
-    color: #16a34a;
-  }
-}
-
-.tech-bottom-actions {
-  margin-top: 16px;
-}
-
-@media (max-width: 900px) {
-  .tech-summary-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 560px) {
+  .tech-result-box,
   .tech-summary-grid {
     grid-template-columns: 1fr;
   }
-}
-.inventory-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed; // 💥 МААНИЛҮҮ
-}
-
-.inventory-table th,
-.inventory-table td {
-  padding: 12px;
-  word-break: break-word; // текст сынбай кетпейт
-}
-
-/* 🔥 Биринчи колонка (Ингредиент) */
-.inventory-table td:first-child,
-.inventory-table th:first-child {
-  width: 220px;
-  min-width: 180px;
-  color: #fff;
-  font-weight: 700;
-}
-
-/* эгер кара болуп көрүнбөй жатса */
-.inventory-table td:first-child strong {
-  color: #fff;
-}
-
-/* scroll fix */
-.inventory-table-wrap {
-  overflow-x: auto;
-}
-
-/* input кара болуп кетпесин */
-.inventory-table input {
-  background: #1a1a1f;
-  color: #fff;
-}
-.inventory-table-wrap {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
-}
-
-.inventory-table {
-  width: 100%;
-  min-width: 0;
-  table-layout: fixed;
-}
-
-.inventory-table th:nth-child(1),
-.inventory-table td:nth-child(1) {
-  width: 240px;
-  min-width: 240px;
-  max-width: 240px;
-  position: sticky;
-  left: 0;
-  z-index: 5;
-  background: #fff;
-  color: #111827;
-}
-
-.inventory-table th:nth-child(1) {
-  background: #111827;
-  color: #fff;
-  z-index: 8;
-}
-
-.inventory-table td:nth-child(1) strong {
-  display: block;
-  color: #111827;
-  font-size: 16px;
-  font-weight: 950;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.inventory-table th,
-.inventory-table td {
-  white-space: normal;
-}.inventory-page {
-  overflow-x: hidden;
-}
-
-.inventory-table-wrap {
-  margin-left: 0;
-  transform: none;
 }

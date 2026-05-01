@@ -6,7 +6,11 @@ import {
   updateTechCard,
 } from "../../api/techCards";
 import { fetchMenuItems } from "../../api/menuItems";
-import { deleteInventoryBalanceByNameUnit } from "../../api/inventory";
+import {
+  deleteInventoryBalanceByNameUnit,
+  fetchInventoryProducts,
+  TInventoryProduct,
+} from "../../api/inventory";
 import { formatPrice } from "../../utils/currency";
 import "./TechCardsPage.scss";
 
@@ -14,6 +18,7 @@ type Unit = "шт" | "кг" | "л";
 
 type Ingredient = {
   id: string;
+  productId: string;
   name: string;
   unit: Unit;
   quantity: string;
@@ -24,6 +29,7 @@ type Ingredient = {
 
 const makeIngredient = (): Ingredient => ({
   id: crypto.randomUUID(),
+  productId: "",
   name: "",
   unit: "кг",
   quantity: "",
@@ -31,6 +37,12 @@ const makeIngredient = (): Ingredient => ({
   pieceWeight: "",
   cost: 0,
 });
+
+const toNumber = (value: unknown) => {
+  const normalized = String(value ?? "").replace(",", ".").trim();
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+};
 
 const getIngredientKey = (item: any) =>
   `${String(item?.name || "")
@@ -50,6 +62,7 @@ const isIngredientUsedInCards = (ingredient: any, cards: any[]) => {
 function TechCardsPage() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
+  const [inventoryProducts, setInventoryProducts] = useState<TInventoryProduct[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<any | null>(null);
@@ -65,13 +78,15 @@ function TechCardsPage() {
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
-    const [menu, techCards] = await Promise.all([
+    const [menu, techCards, products] = await Promise.all([
       fetchMenuItems(true),
       fetchTechCards(),
+      fetchInventoryProducts(),
     ]);
 
     setMenuItems(menu || []);
     setCards(techCards || []);
+    setInventoryProducts(products || []);
   };
 
   useEffect(() => {
@@ -101,9 +116,10 @@ function TechCardsPage() {
 
   const isValidIngredient = (item: Ingredient) => {
     return (
+      item.productId &&
       item.name.trim() &&
-      Number(item.quantity) > 0 &&
-      Number(item.unitPrice) > 0
+      toNumber(item.quantity) > 0 &&
+      toNumber(item.unitPrice) >= 0
     );
   };
 
@@ -113,12 +129,12 @@ function TechCardsPage() {
 
   const totalWeight = useMemo(() => {
     return ingredients.reduce((sum, item) => {
-      const quantity = Number(item.quantity || 0);
+      const quantity = toNumber(item.quantity);
 
       if (item.unit === "кг") return sum + quantity;
 
       if (item.unit === "шт") {
-        return sum + quantity * Number(item.pieceWeight || 0);
+        return sum + quantity * toNumber(item.pieceWeight);
       }
 
       return sum;
@@ -128,18 +144,18 @@ function TechCardsPage() {
   const totalLiters = useMemo(() => {
     return ingredients.reduce((sum, item) => {
       if (item.unit !== "л") return sum;
-      return sum + Number(item.quantity || 0);
+      return sum + toNumber(item.quantity);
     }, 0);
   }, [ingredients]);
 
   const totalPieces = useMemo(() => {
     return ingredients.reduce((sum, item) => {
       if (item.unit !== "шт") return sum;
-      return sum + Number(item.quantity || 0);
+      return sum + toNumber(item.quantity);
     }, 0);
   }, [ingredients]);
 
-  const percentNumber = Number(percent || 0);
+  const percentNumber = toNumber(percent);
 
   const sellingPrice = useMemo(() => {
     if (percentNumber <= 0) return 0;
@@ -186,6 +202,7 @@ function TechCardsPage() {
       (card.ingredients || []).length
         ? (card.ingredients || []).map((item: any) => ({
             id: crypto.randomUUID(),
+            productId: item.product_id || "",
             name: item.name || "",
             unit: item.unit || "кг",
             quantity: String(item.quantity ?? ""),
@@ -238,6 +255,41 @@ function TechCardsPage() {
     });
   };
 
+  const selectInventoryProduct = (ingredientId: string, productId: string) => {
+    const product = inventoryProducts.find((item) => item.id === productId);
+
+    setIngredients((prev) =>
+      prev.map((item) => {
+        if (item.id !== ingredientId) return item;
+
+        if (!product) {
+          return {
+            ...item,
+            productId: "",
+            name: "",
+            unit: "кг",
+            unitPrice: "",
+            pieceWeight: "",
+            cost: 0,
+          };
+        }
+
+        const quantity = toNumber(item.quantity);
+        const unitPrice = toNumber(product.price);
+
+        return {
+          ...item,
+          productId: product.id,
+          name: product.name,
+          unit: product.unit as Unit,
+          unitPrice: String(unitPrice),
+          pieceWeight: product.unit === "шт" ? item.pieceWeight : "",
+          cost: +(quantity * unitPrice).toFixed(2),
+        };
+      })
+    );
+  };
+
   const updateIngredient = (
     id: string,
     field: keyof Ingredient,
@@ -256,8 +308,8 @@ function TechCardsPage() {
           updated.pieceWeight = "";
         }
 
-        const quantity = Number(updated.quantity || 0);
-        const unitPrice = Number(updated.unitPrice || 0);
+        const quantity = toNumber(updated.quantity);
+        const unitPrice = toNumber(updated.unitPrice);
 
         updated.cost = +(quantity * unitPrice).toFixed(2);
 
@@ -266,8 +318,33 @@ function TechCardsPage() {
     );
   };
 
+  const refreshPricesFromProducts = () => {
+    setIngredients((prev) =>
+      prev.map((item) => {
+        const product = inventoryProducts.find(
+          (product) => product.id === item.productId
+        );
+
+        if (!product) return item;
+
+        const unitPrice = toNumber(product.price);
+        const quantity = toNumber(item.quantity);
+
+        return {
+          ...item,
+          name: product.name,
+          unit: product.unit as Unit,
+          unitPrice: String(unitPrice),
+          cost: +(quantity * unitPrice).toFixed(2),
+        };
+      })
+    );
+  };
+
   const handleFirstSave = () => {
     if (!selectedFood) return;
+
+    refreshPricesFromProducts();
 
     const valid = ingredients.some(isValidIngredient);
 
@@ -281,6 +358,8 @@ function TechCardsPage() {
 
   const handleConfirm = async () => {
     if (!selectedFood) return;
+
+    refreshPricesFromProducts();
 
     const validIngredients = ingredients.filter(isValidIngredient);
 
@@ -298,11 +377,12 @@ function TechCardsPage() {
       setLoading(true);
 
       const payloadIngredients = validIngredients.map((item) => ({
+        product_id: item.productId || null,
         name: item.name.trim(),
         unit: item.unit,
-        quantity: Number(item.quantity || 0),
-        unit_price: Number(item.unitPrice || 0),
-        piece_weight: item.unit === "шт" ? Number(item.pieceWeight || 0) : 0,
+        quantity: toNumber(item.quantity),
+        unit_price: toNumber(item.unitPrice),
+        piece_weight: item.unit === "шт" ? toNumber(item.pieceWeight) : 0,
         cost: item.cost,
       }));
 
@@ -578,28 +658,26 @@ function TechCardsPage() {
                   <div className="tech-index">{index + 1}</div>
 
                   <label>
-                    <span>Название ингредиента</span>
-                    <input
-                      placeholder="Например: кола"
-                      value={item.name}
+                    <span>Ингредиент</span>
+                    <select
+                      value={item.productId}
                       onChange={(e) =>
-                        updateIngredient(item.id, "name", e.target.value)
+                        selectInventoryProduct(item.id, e.target.value)
                       }
-                    />
+                    >
+                      <option value="">Выберите товар</option>
+
+                      {inventoryProducts.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} — {product.unit}
+                        </option>
+                      ))}
+                    </select>
                   </label>
 
                   <label>
                     <span>Ед.</span>
-                    <select
-                      value={item.unit}
-                      onChange={(e) =>
-                        updateIngredient(
-                          item.id,
-                          "unit",
-                          e.target.value as Unit
-                        )
-                      }
-                    >
+                    <select value={item.unit} disabled>
                       <option value="шт">шт</option>
                       <option value="кг">кг</option>
                       <option value="л">л</option>
@@ -621,7 +699,7 @@ function TechCardsPage() {
 
                   {item.unit === "шт" && (
                     <label>
-                      <span>Вес 1 шт, кг (необязательно)</span>
+                      <span>Вес 1 шт, кг</span>
                       <input
                         type="number"
                         step="0.001"
@@ -643,11 +721,8 @@ function TechCardsPage() {
                     <input
                       type="number"
                       step="0.01"
-                      placeholder="65"
                       value={item.unitPrice}
-                      onChange={(e) =>
-                        updateIngredient(item.id, "unitPrice", e.target.value)
-                      }
+                      disabled
                     />
                   </label>
 

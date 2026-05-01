@@ -6,9 +6,11 @@ import { fetchHistoryOrders, fetchOrders } from "../../api/orders";
 import {
   fetchInventoryBalances,
   fetchInventoryOperations,
+  fetchInventoryProducts,
   fetchInventoryReports,
   TInventoryBalance,
   TInventoryOperation,
+  TInventoryProduct,
   TInventoryReport,
 } from "../../api/inventory";
 
@@ -20,6 +22,7 @@ import InventoryUsageTable from "./components/InventoryUsageTable";
 import InventoryOperationPanel from "./components/InventoryOperationPanel";
 import InventoryCheckPanel from "./components/InventoryCheckPanel";
 import InventoryArchivePanel from "./components/InventoryArchivePanel";
+import InventoryProductsPanel from "./components/InventoryProductsPanel";
 
 import "./TechInventoryPage.scss";
 
@@ -27,6 +30,7 @@ export type Period = "today" | "yesterday" | "all";
 
 export type InventoryView =
   | "state"
+  | "products"
   | "today"
   | "yesterday"
   | "all"
@@ -192,6 +196,7 @@ function TechInventoryPage() {
   const [operations, setOperations] = useState<TInventoryOperation[]>([]);
   const [balances, setBalances] = useState<TInventoryBalance[]>([]);
   const [reports, setReports] = useState<TInventoryReport[]>([]);
+  const [products, setProducts] = useState<TInventoryProduct[]>([]);
 
   const [view, setView] = useState<InventoryView>("state");
   const [loading, setLoading] = useState(true);
@@ -201,7 +206,7 @@ function TechInventoryPage() {
     try {
       setLoading(true);
 
-      const [cards, activeOrders, archiveOrders, ops, bals, reps] =
+      const [cards, activeOrders, archiveOrders, ops, bals, reps, prods] =
         await Promise.all([
           fetchTechCards(),
           fetchOrders(),
@@ -209,6 +214,7 @@ function TechInventoryPage() {
           fetchInventoryOperations(),
           fetchInventoryBalances(),
           fetchInventoryReports(),
+          fetchInventoryProducts(),
         ]);
 
       setTechCards(cards || []);
@@ -216,6 +222,9 @@ function TechInventoryPage() {
       setOperations(ops || []);
       setBalances(bals || []);
       setReports(reps || []);
+      setProducts(prods || []);
+    } catch (error: any) {
+      alert(error?.message || "Не удалось загрузить склад");
     } finally {
       setLoading(false);
     }
@@ -224,17 +233,6 @@ function TechInventoryPage() {
   useEffect(() => {
     void load();
   }, []);
-
-  const existsInTechCards = (name: string, unit: string) => {
-    const key = normalizeKey(name, unit);
-
-    return techCards.some((card) =>
-      (card.ingredients || []).some(
-        (ing: any) =>
-          normalizeKey(getIngredientName(ing), getIngredientUnit(ing)) === key
-      )
-    );
-  };
 
   const findTechCardForFood = (food: any) => {
     const ids = [
@@ -250,49 +248,28 @@ function TechInventoryPage() {
   };
 
   const productOptions = useMemo(() => {
-    const map = new Map<string, { name: string; unit: string }>();
-
-    techCards.forEach((card) => {
-      (card.ingredients || []).forEach((ing: any) => {
-        const name = getIngredientName(ing);
-        const unit = getIngredientUnit(ing);
-        const key = normalizeKey(name, unit);
-
-        if (!map.has(key)) {
-          map.set(key, { name, unit });
-        }
-      });
-    });
-
-    balances.forEach((balance) => {
-      const key = normalizeKey(balance.name, balance.unit);
-
-      if (!map.has(key)) {
-        map.set(key, {
-          name: balance.name,
-          unit: balance.unit,
-        });
-      }
-    });
-
-    operations.forEach((operation) => {
-      const key = normalizeKey(operation.name, operation.unit);
-
-      if (!map.has(key)) {
-        map.set(key, {
-          name: operation.name,
-          unit: operation.unit,
-        });
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, "ru")
-    );
-  }, [techCards, balances, operations]);
+    return products
+      .filter((product) => product.is_active !== false)
+      .map((product) => ({
+        id: product.id,
+        name: product.name,
+        unit: product.unit,
+        category: product.category,
+        price: product.price,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }, [products]);
 
   const buildRows = (period: Period): InventoryRow[] => {
     const map = new Map<string, InventoryRow>();
+
+    const activeProducts = products.filter(
+      (product) => product.is_active !== false
+    );
+
+    const allowedKeys = new Set(
+      activeProducts.map((product) => normalizeKey(product.name, product.unit))
+    );
 
     const getBalance = (name: string, unit: string) => {
       const key = normalizeKey(name, unit);
@@ -303,9 +280,9 @@ function TechInventoryPage() {
     };
 
     const ensureRow = (name: string, unit: string) => {
-      if (!existsInTechCards(name, unit)) return null;
-
       const key = normalizeKey(name, unit);
+
+      if (!allowedKeys.has(key)) return null;
 
       if (!map.has(key)) {
         const balance = getBalance(name, unit);
@@ -324,14 +301,8 @@ function TechInventoryPage() {
       return map.get(key)!;
     };
 
-    techCards.forEach((card) => {
-      (card.ingredients || []).forEach((ing: any) => {
-        ensureRow(getIngredientName(ing), getIngredientUnit(ing));
-      });
-    });
-
-    balances.forEach((balance) => {
-      ensureRow(balance.name, balance.unit);
+    activeProducts.forEach((product) => {
+      ensureRow(product.name, product.unit);
     });
 
     orders
@@ -342,7 +313,6 @@ function TechInventoryPage() {
 
         (order.items || []).forEach((food: IMenuItem) => {
           const techCard = findTechCardForFood(food);
-
           if (!techCard) return;
 
           const foodQty = getFoodQty(food, order);
@@ -350,6 +320,10 @@ function TechInventoryPage() {
           (techCard.ingredients || []).forEach((ing: any) => {
             const name = getIngredientName(ing);
             const unit = getIngredientUnit(ing);
+
+            const row = ensureRow(name, unit);
+            if (!row) return;
+
             const balance = getBalance(name, unit);
 
             const confirmedTime = balance?.confirmed_at
@@ -364,9 +338,6 @@ function TechInventoryPage() {
             ) {
               return;
             }
-
-            const row = ensureRow(name, unit);
-            if (!row) return;
 
             row.usedQty += getIngredientQty(ing) * foodQty;
           });
@@ -400,6 +371,7 @@ function TechInventoryPage() {
     balances,
     orders,
     operations,
+    products,
   ]);
 
   const todayRows = useMemo(() => buildRows("today"), [
@@ -407,6 +379,7 @@ function TechInventoryPage() {
     balances,
     orders,
     operations,
+    products,
   ]);
 
   const yesterdayRows = useMemo(() => buildRows("yesterday"), [
@@ -414,6 +387,7 @@ function TechInventoryPage() {
     balances,
     orders,
     operations,
+    products,
   ]);
 
   const allRows = useMemo(() => buildRows("all"), [
@@ -421,6 +395,7 @@ function TechInventoryPage() {
     balances,
     orders,
     operations,
+    products,
   ]);
 
   const readyOrdersCount = useMemo(() => {
@@ -451,12 +426,22 @@ function TechInventoryPage() {
       </div>
 
       <div className="inventory-info">
-        Товаров: <strong>{stateRows.length}</strong> • Готовых заказов:{" "}
+        Товаров в базе: <strong>{products.length}</strong> • Товаров в складе:{" "}
+        <strong>{stateRows.length}</strong> • Готовых заказов:{" "}
         <strong>{readyOrdersCount}</strong> • Всего заказов:{" "}
         <strong>{orders.length}</strong> • Операций:{" "}
         <strong>{operations.length}</strong> • Архивов:{" "}
         <strong>{reports.length}</strong>
       </div>
+
+      {view === "products" && (
+        <InventoryProductsPanel
+          products={products}
+          saving={saving}
+          setSaving={setSaving}
+          onSaved={load}
+        />
+      )}
 
       {view === "state" && (
         <InventoryStateTable rows={stateRows} formatQty={formatQty} />

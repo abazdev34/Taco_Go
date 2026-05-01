@@ -1,112 +1,41 @@
-import { useRef } from "react";
 import { InventoryView } from "../TechInventoryPage";
 
 type Props = {
   view: InventoryView;
   saving: boolean;
   onView: (view: InventoryView) => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
 };
 
 function InventoryTopBar({ view, saving, onView, onRefresh }: Props) {
-  const sliderRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollSlider = (direction: "left" | "right") => {
-    sliderRef.current?.scrollBy({
-      left: direction === "left" ? -280 : 280,
-      behavior: "smooth",
-    });
-  };
+  const buttons: { key: InventoryView; label: string }[] = [
+    { key: "state", label: "Склад" },
+    { key: "products", label: "Товары" },
+    { key: "received", label: "Приход" },
+    { key: "writeOff", label: "Списание" },
+    { key: "today", label: "Сегодня" },
+    { key: "yesterday", label: "Вчера" },
+    { key: "all", label: "Все списания" },
+    { key: "check", label: "Проверка" },
+    { key: "archive", label: "Архив" },
+  ];
 
   return (
-    <div className="inventory-top-slider">
-      <button
-        type="button"
-        className="inventory-slider-arrow"
-        onClick={() => scrollSlider("left")}
-      >
-        ‹
-      </button>
-
-      <div
-        ref={sliderRef}
-        className="inventory-actions inventory-actions--slider"
-      >
+    <div className="inventory-topbar">
+      {buttons.map((button) => (
         <button
+          key={button.key}
           type="button"
-          className={view === "state" ? "active" : ""}
-          onClick={() => onView("state")}
+          className={view === button.key ? "active" : ""}
+          disabled={saving}
+          onClick={() => onView(button.key)}
         >
-          Состояние
+          {button.label}
         </button>
+      ))}
 
-        <button
-          type="button"
-          className={view === "today" ? "active" : ""}
-          onClick={() => onView("today")}
-        >
-          Сегодня
-        </button>
-
-        <button
-          type="button"
-          className={view === "yesterday" ? "active" : ""}
-          onClick={() => onView("yesterday")}
-        >
-          Вчера
-        </button>
-
-        <button
-          type="button"
-          className={view === "all" ? "active" : ""}
-          onClick={() => onView("all")}
-        >
-          Всё
-        </button>
-
-        <button
-          type="button"
-          className={view === "received" ? "active success" : "success"}
-          onClick={() => onView("received")}
-        >
-          Приход
-        </button>
-
-        <button
-          type="button"
-          className={view === "writeOff" ? "active warning" : "warning"}
-          onClick={() => onView("writeOff")}
-        >
-          Списание
-        </button>
-
-        <button
-          type="button"
-          className={view === "check" ? "active confirm" : "confirm"}
-          onClick={() => onView("check")}
-        >
-          Сверка
-        </button>
-
-        <button
-          type="button"
-          className={view === "archive" ? "active archive" : "archive"}
-          onClick={() => onView("archive")}
-        >
-          Архив
-        </button>
-
-        <button type="button" onClick={onRefresh} disabled={saving}>
-          Обновить
-        </button>
-      </div>
-
-      <button
-        type="button"
-        className="inventory-slider-arrow"
-        onClick={() => scrollSlider("right")}
-      >
-        ›
+      <button type="button" disabled={saving} onClick={() => void onRefresh()}>
+        Обновить
       </button>
     </div>
   );
