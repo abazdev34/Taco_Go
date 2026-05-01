@@ -4,17 +4,13 @@ import "./AdminLayout.scss";
 
 const menuItems = [
   { to: "/admin", icon: "📊", label: "Главная", end: true },
-
   { to: "/admin/weekly", icon: "🗓️", label: "Недельная статистика" },
   { to: "/admin/monthly", icon: "🗂️", label: "Месячная статистика" },
-
   { to: "/admin/order-history", icon: "🕘", label: "История заказов" },
-
   { to: "/admin/categories", icon: "📂", label: "Категории" },
   { to: "/admin/menu-items", icon: "🍔", label: "Меню" },
   { to: "/admin/tech-cards", icon: "🧾", label: "Тех карты" },
   { to: "/admin/inventory", icon: "📦", label: "Склад" },
-
   { to: "/admin/users", icon: "👥", label: "Пользователи" },
   { to: "/admin/create-staff", icon: "👤", label: "Создать сотрудника" },
   { to: "/admin/cash-monitor", icon: "💰", label: "Кассовый контроль" },
@@ -84,7 +80,7 @@ function AdminLayout() {
       <aside className="admin-sidebar admin-sidebar--desktop">
         <div className="admin-sidebar__brand">
           <span className="admin-sidebar__badge">Панель управления</span>
-          <h2>🌯 TacoGo</h2>
+          <h2>🌯 Burritos</h2>
         </div>
 
         <AdminNav />
@@ -103,7 +99,7 @@ function AdminLayout() {
                 <span className="admin-sidebar__badge">
                   Панель управления
                 </span>
-                <h2>🌯 TacoGo</h2>
+                <h2>🌯 Burritos</h2>
               </div>
 
               <button

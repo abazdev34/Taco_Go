@@ -1,7 +1,201 @@
 .admin-stats-page {
   min-height: 100vh;
   padding: 24px;
-  background: #f4f6fb;
+  background: #f4f6fb;.admin-stats-page {
+  min-height: 100vh;
+  padding: 28px;
+  background: #f9fafb;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* HEADER */
+.admin-stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 26px;
+
+  h1 {
+    margin: 0;
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  p {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 14px;
+  }
+}
+
+.admin-stats-badge {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* BUTTONS */
+.admin-stats-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 26px;
+
+  button {
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: none;
+    background: #4f46e5;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #4338ca;
+      transform: translateY(-1px);
+    }
+
+    &:last-child {
+      background: #ef4444;
+
+      &:hover {
+        background: #dc2626;
+      }
+    }
+  }
+}
+
+/* CARDS */
+.admin-stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.admin-stat-card {
+  padding: 20px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s ease;
+
+  span {
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  strong {
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 6px;
+    display: block;
+  }
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  }
+}
+
+/* ACTIVE CARD */
+.admin-stat-card.active {
+  background: linear-gradient(135deg, #6366f1, #22c55e);
+  color: white;
+
+  span,
+  strong {
+    color: white;
+  }
+}
+
+/* CASH CARD */
+.admin-stat-card--cash {
+  background: linear-gradient(135deg, #22c55e, #4ade80);
+  color: white;
+
+  span,
+  strong {
+    color: white;
+  }
+}
+
+/* PANELS */
+.admin-stats-panel {
+  border-radius: 20px;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.admin-stats-panel__head h3 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* LIST ITEMS */
+.admin-top-item,
+.admin-history-card,
+.admin-history-order {
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+}
+
+/* DAY ROW */
+.admin-day-row {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+
+  > button {
+    padding: 16px;
+    background: #f9fafb;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: 0.2s;
+
+    &:hover {
+      background: #f1f5f9;
+    }
+  }
+}
+
+/* CHART */
+.admin-chart-box {
+  min-height: 320px;
+
+  .recharts-wrapper {
+    min-width: 520px;
+  }
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .admin-stats-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-stats-header h1 {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-stats-cards {
+    grid-template-columns: 1fr;
+  }
+}
   color: #111827;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
