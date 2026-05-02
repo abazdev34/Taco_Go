@@ -8,7 +8,9 @@ import {
 import { fetchMenuItems } from "../../api/menuItems";
 import {
   deleteInventoryBalanceByNameUnit,
+  fetchInventoryBatches,
   fetchInventoryProducts,
+  TInventoryBatch,
   TInventoryProduct,
 } from "../../api/inventory";
 import { formatPrice } from "../../utils/currency";
@@ -62,7 +64,12 @@ const isIngredientUsedInCards = (ingredient: any, cards: any[]) => {
 function TechCardsPage() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
-  const [inventoryProducts, setInventoryProducts] = useState<TInventoryProduct[]>([]);
+  const [inventoryProducts, setInventoryProducts] = useState<
+    TInventoryProduct[]
+  >([]);
+  const [inventoryBatches, setInventoryBatches] = useState<TInventoryBatch[]>(
+    []
+  );
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<any | null>(null);
@@ -78,20 +85,38 @@ function TechCardsPage() {
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
-    const [menu, techCards, products] = await Promise.all([
+    const [menu, techCards, products, batches] = await Promise.all([
       fetchMenuItems(true),
       fetchTechCards(),
       fetchInventoryProducts(),
+      fetchInventoryBatches(),
     ]);
 
     setMenuItems(menu || []);
     setCards(techCards || []);
     setInventoryProducts(products || []);
+    setInventoryBatches(batches || []);
   };
 
   useEffect(() => {
     void load();
   }, []);
+
+  const getFifoPrice = (productId: string) => {
+    const batch = inventoryBatches.find(
+      (item) =>
+        String(item.product_id) === String(productId) &&
+        toNumber(item.quantity_remaining) > 0
+    );
+
+    if (batch) return toNumber(batch.price);
+
+    const product = inventoryProducts.find(
+      (item) => String(item.id) === String(productId)
+    );
+
+    return toNumber(product?.price);
+  };
 
   const cleanupUnusedIngredients = async (
     removedIngredients: any[],
@@ -200,16 +225,25 @@ function TechCardsPage() {
 
     setIngredients(
       (card.ingredients || []).length
-        ? (card.ingredients || []).map((item: any) => ({
-            id: crypto.randomUUID(),
-            productId: item.product_id || "",
-            name: item.name || "",
-            unit: item.unit || "кг",
-            quantity: String(item.quantity ?? ""),
-            unitPrice: String(item.unit_price ?? ""),
-            pieceWeight: String(item.piece_weight ?? ""),
-            cost: Number(item.cost || 0),
-          }))
+        ? (card.ingredients || []).map((item: any) => {
+            const fifoPrice = item.product_id
+              ? getFifoPrice(item.product_id)
+              : toNumber(item.unit_price);
+
+            const quantity = toNumber(item.quantity);
+            const unitPrice = fifoPrice || toNumber(item.unit_price);
+
+            return {
+              id: crypto.randomUUID(),
+              productId: item.product_id || "",
+              name: item.name || "",
+              unit: item.unit || "кг",
+              quantity: String(item.quantity ?? ""),
+              unitPrice: String(unitPrice),
+              pieceWeight: String(item.piece_weight ?? ""),
+              cost: +(quantity * unitPrice).toFixed(2),
+            };
+          })
         : [makeIngredient()]
     );
   };
@@ -275,7 +309,7 @@ function TechCardsPage() {
         }
 
         const quantity = toNumber(item.quantity);
-        const unitPrice = toNumber(product.price);
+        const unitPrice = getFifoPrice(product.id);
 
         return {
           ...item,
@@ -327,7 +361,7 @@ function TechCardsPage() {
 
         if (!product) return item;
 
-        const unitPrice = toNumber(product.price);
+        const unitPrice = getFifoPrice(product.id);
         const quantity = toNumber(item.quantity);
 
         return {
@@ -341,12 +375,34 @@ function TechCardsPage() {
     );
   };
 
+  const getIngredientsWithFreshPrices = () => {
+    return ingredients.map((item) => {
+      const product = inventoryProducts.find(
+        (product) => product.id === item.productId
+      );
+
+      if (!product) return item;
+
+      const unitPrice = getFifoPrice(product.id);
+      const quantity = toNumber(item.quantity);
+
+      return {
+        ...item,
+        name: product.name,
+        unit: product.unit as Unit,
+        unitPrice: String(unitPrice),
+        cost: +(quantity * unitPrice).toFixed(2),
+      };
+    });
+  };
+
   const handleFirstSave = () => {
     if (!selectedFood) return;
 
-    refreshPricesFromProducts();
+    const freshIngredients = getIngredientsWithFreshPrices();
+    setIngredients(freshIngredients);
 
-    const valid = ingredients.some(isValidIngredient);
+    const valid = freshIngredients.some(isValidIngredient);
 
     if (!valid) {
       alert("Заполните хотя бы один ингредиент");
@@ -359,9 +415,10 @@ function TechCardsPage() {
   const handleConfirm = async () => {
     if (!selectedFood) return;
 
-    refreshPricesFromProducts();
+    const freshIngredients = getIngredientsWithFreshPrices();
+    setIngredients(freshIngredients);
 
-    const validIngredients = ingredients.filter(isValidIngredient);
+    const validIngredients = freshIngredients.filter(isValidIngredient);
 
     if (!validIngredients.length) {
       alert("Заполните ингредиенты");
@@ -372,6 +429,14 @@ function TechCardsPage() {
       alert("Введите процент больше 0");
       return;
     }
+
+    const freshTotalCost = validIngredients.reduce(
+      (sum, item) => sum + item.cost,
+      0
+    );
+
+    const freshSellingPrice = (freshTotalCost * 100) / percentNumber;
+    const freshProfit = freshSellingPrice - freshTotalCost;
 
     try {
       setLoading(true);
@@ -402,10 +467,10 @@ function TechCardsPage() {
 
       const payload = {
         menu_item_id: selectedFood.id,
-        total_cost: +totalCost.toFixed(2),
+        total_cost: +freshTotalCost.toFixed(2),
         total_percent: percentNumber,
-        total_selling_price: +sellingPrice.toFixed(2),
-        total_profit: +profit.toFixed(2),
+        total_selling_price: +freshSellingPrice.toFixed(2),
+        total_profit: +freshProfit.toFixed(2),
         total_weight: +totalWeight.toFixed(3),
         total_liters: +totalLiters.toFixed(3),
         total_pieces: totalPieces,
@@ -502,6 +567,12 @@ function TechCardsPage() {
                 onClick={() => openFood(food)}
               >
                 <span>{food.title}</span>
+
+                {card && (
+                  <small className="tech-food-cost">
+                    Өздук баа: {formatPrice(Number(card.total_cost || 0))}
+                  </small>
+                )}
 
                 <b className={card ? "ready" : "not-ready"}>
                   {card ? (isOpen ? "Открыто" : "Готово") : "Не готово"}

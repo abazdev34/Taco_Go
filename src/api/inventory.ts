@@ -12,6 +12,17 @@ export type TInventoryProduct = {
   created_at: string;
 };
 
+export type TInventoryBatch = {
+  id: string;
+  product_id: string;
+  name: string;
+  unit: string;
+  quantity_received: number;
+  quantity_remaining: number;
+  price: number;
+  created_at: string;
+};
+
 export type TInventoryOperation = {
   id: string;
   product_id?: string | null;
@@ -50,6 +61,32 @@ export const fetchInventoryProducts = async () => {
 
   return ((data || []).filter((item) => item.is_active !== false) ||
     []) as TInventoryProduct[];
+};
+
+export const fetchInventoryBatches = async () => {
+  const { data, error } = await supabase
+    .from("inventory_batches")
+    .select("*")
+    .gt("quantity_remaining", 0)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as TInventoryBatch[];
+};
+
+export const getProductFifoPrice = async (productId: string) => {
+  const { data, error } = await supabase
+    .from("inventory_batches")
+    .select("*")
+    .eq("product_id", productId)
+    .gt("quantity_remaining", 0)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return Number(data?.price || 0);
 };
 
 export const createInventoryProduct = async (payload: {
@@ -138,12 +175,27 @@ export const createInventoryOperations = async (
       Number(item.price || 0) > 0
   );
 
+  // ЭСКИ ЛОГИКА КАЛАТ
   await Promise.all(
     receivedItems.map((item) =>
       supabase
         .from("inventory_products")
         .update({ price: item.price || 0 })
         .eq("id", item.product_id)
+    )
+  );
+
+  // ЖАҢЫ FIFO ПАРТИЯ
+  await Promise.all(
+    receivedItems.map((item) =>
+      supabase.from("inventory_batches").insert({
+        product_id: item.product_id,
+        name: item.name.trim(),
+        unit: item.unit,
+        quantity_received: item.quantity,
+        quantity_remaining: item.quantity,
+        price: item.price || 0,
+      })
     )
   );
 
