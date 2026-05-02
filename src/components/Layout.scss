@@ -1,18 +1,27 @@
+:root {
+  --navbar-height: 86px;
+}
+
 .app-shell {
   min-height: 100vh;
   background: #f8fafc;
+  overflow-x: hidden;
 }
 
 .navbar {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 100;
-  min-height: 86px;
+  left: 0;
+  right: 0;
+  z-index: 20000;
+
+  min-height: var(--navbar-height);
   padding: 10px 30px;
   display: flex;
   align-items: center;
   gap: 18px;
-  background: rgba(255, 255, 255, 0.92);
+
+  background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid #e2e8f0;
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(16px);
@@ -20,7 +29,7 @@
 }
 
 .brand {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -51,15 +60,15 @@
   display: flex;
   flex-direction: column;
   line-height: 0.95;
+}
 
-  strong {
-    color: #020617;
-    font-size: clamp(20px, 3vw, 30px);
-    font-weight: 950;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
+.brand__text strong {
+  color: #020617;
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .brand__badge {
@@ -163,7 +172,7 @@
 .mobile-actions {
   display: none;
   margin-left: auto;
-  gap: 10px;
+  gap: 8px;
   flex: 0 0 auto;
 }
 
@@ -190,7 +199,7 @@
 .mobile-drawer-wrap {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: 30000;
 }
 
 .mobile-drawer__overlay {
@@ -245,14 +254,10 @@
     font-size: 25px;
   }
 
-  div {
-    min-width: 0;
-  }
-
   strong {
     display: block;
     color: #020617;
-    font-size: clamp(20px, 6vw, 26px);
+    font-size: 24px;
     font-weight: 950;
     white-space: nowrap;
   }
@@ -269,7 +274,6 @@
 }
 
 .mobile-drawer__close {
-  flex: 0 0 auto;
   width: 42px;
   height: 42px;
   border-radius: 14px;
@@ -302,18 +306,6 @@
   font-weight: 900;
   cursor: pointer;
   box-sizing: border-box;
-
-  &:hover {
-    background: #eff6ff;
-    color: #2563eb;
-    border-color: #bfdbfe;
-  }
-}
-
-.mobile-drawer__icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
 }
 
 .mobile-drawer__footer {
@@ -328,7 +320,8 @@
 }
 
 .page-content {
-  min-height: calc(100vh - 86px);
+  min-height: 100vh;
+  overflow: visible;
 }
 
 .page--fullscreen {
@@ -347,16 +340,22 @@
 }
 
 @media (max-width: 520px) {
+  :root {
+    --navbar-height: 82px;
+  }
+
   .navbar {
-    min-height: 74px;
+    min-height: var(--navbar-height);
     padding: 8px 10px;
     gap: 8px;
   }
 
   .brand {
-    max-width: calc(100vw - 118px);
+    max-width: calc(100vw - 108px);
+    height: 58px;
     padding: 6px 10px 6px 6px;
     gap: 8px;
+    overflow: hidden;
 
     &::before {
       width: 44px;
@@ -365,14 +364,20 @@
     }
   }
 
+  .brand__text {
+    line-height: 0.9;
+    overflow: hidden;
+  }
+
   .brand__text strong {
-    font-size: clamp(16px, 5.8vw, 20px);
+    font-size: 28px;
+    letter-spacing: -0.04em;
   }
 
   .brand__badge {
-    margin-bottom: 5px;
-    font-size: 8px;
-    letter-spacing: 0.1em;
+    margin-bottom: 3px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
   }
 
   .mobile-actions {
@@ -383,28 +388,19 @@
     width: 42px;
     height: 42px;
   }
-
-  .mobile-drawer__panel {
-    width: 88vw;
-    padding: 14px;
-  }
 }
 
-@media (max-width: 360px) {
-  .brand {
-    max-width: calc(100vw - 108px);
-  }
-
+@media (max-width: 390px) {
   .brand__text strong {
-    font-size: 15px;
+    font-size: 24px;
   }
 
   .brand__badge {
-    font-size: 7px;
+    font-size: 9px;
   }
 
   .mobile-action {
-    width: 39px;
-    height: 39px;
+    width: 40px;
+    height: 40px;
   }
 }

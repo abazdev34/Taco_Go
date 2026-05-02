@@ -36,7 +36,6 @@ function ClientMonitor() {
 	const [comment, setComment] = useState('')
 	const [successOpen, setSuccessOpen] = useState(false)
 	const [lastOrderNumber, setLastOrderNumber] = useState('001')
-
 	const [selectedItem, setSelectedItem] = useState<any | null>(null)
 	const [selectedQty, setSelectedQty] = useState(1)
 
@@ -354,10 +353,7 @@ function ClientMonitor() {
 
 			{selectedItem && (
 				<div className='client-item-modal'>
-					<div
-						className='client-item-modal__overlay'
-						onClick={closeItemModal}
-					/>
+					<div className='client-item-modal__overlay' onClick={closeItemModal} />
 
 					<div className='client-item-modal__card'>
 						<button
@@ -374,9 +370,7 @@ function ClientMonitor() {
 
 						<div className='client-item-modal__content'>
 							<h2>{selectedItem.title}</h2>
-							<p>
-								{selectedItem.description || 'Сочное блюдо из нашего меню'}
-							</p>
+							<p>{selectedItem.description || 'Сочное блюдо из нашего меню'}</p>
 
 							<div className='client-item-modal__price'>
 								{formatPrice(Number(selectedItem.price || 0))}
