@@ -1,51 +1,73 @@
-export type TUnitType = 'шт' | 'кг' | 'л'
+export type TUnitType = "шт" | "кг" | "л";
 
 export interface ITechCardIngredientRow {
-  id: string
-  tech_card_id: string
+  id: string;
+  tech_card_id: string;
 
-  name: string
-  unit: TUnitType
+  product_id: string | null; // 🔥 FIFO үчүн маанилүү
 
-  quantity: number
-  unit_price: number
-  percent: number
+  name: string;
+  unit: TUnitType;
 
-  cost: number
-  selling_price: number
-  profit: number
+  quantity: number;
+  unit_price: number;
 
-  created_at: string
+  piece_weight: number; // 🔥 шт үчүн
+
+  percent: number;
+
+  cost: number;
+  selling_price: number;
+  profit: number;
+
+  created_at: string;
 }
 
 export interface ITechCardRow {
-  id: string
-  menu_item_id: string
+  id: string;
+  menu_item_id: string;
 
-  total_cost: number
-  total_percent: number
-  total_selling_price: number
-  total_profit: number
+  total_cost: number;
+  total_percent: number;
+  total_selling_price: number;
+  total_profit: number;
 
-  created_at: string
-  ingredients: ITechCardIngredientRow[]
+  total_weight: number; // 🔥
+  total_liters: number; // 🔥
+  total_pieces: number; // 🔥
+
+  created_at: string;
+
+  ingredients: ITechCardIngredientRow[];
 }
 
 export interface ICreateTechCardPayload {
-  menu_item_id: string
-  total_cost: number
-  total_percent: number
-  total_selling_price: number
-  total_profit: number
+  menu_item_id: string;
+
+  total_cost: number;
+  total_percent: number;
+  total_selling_price: number;
+  total_profit: number;
+
+  total_weight: number; // 🔥
+  total_liters: number; // 🔥
+  total_pieces: number; // 🔥
 
   ingredients: {
-    name: string
-    unit: TUnitType
-    quantity: number
-    unit_price: number
-    percent: number
-    cost: number
-    selling_price: number
-    profit: number
-  }[]
+    product_id: string | null; // 🔥 FIFO
+
+    name: string;
+    unit: TUnitType;
+
+    quantity: number;
+    unit_price: number;
+
+    piece_weight: number; // 🔥
+
+    percent?: number;
+    cost: number;
+
+    selling_price?: number;
+    profit?: number;
+  }[];
 }
