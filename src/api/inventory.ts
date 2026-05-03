@@ -50,17 +50,25 @@ export type TInventoryReport = {
   created_at: string;
 };
 
+const toNumber = (value: unknown) => {
+  const normalized = String(value ?? "").replace(",", ".").trim();
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const cleanText = (value: unknown) => String(value ?? "").trim();
+
 export const fetchInventoryProducts = async () => {
   const { data, error } = await supabase
     .from("inventory_products")
     .select("*")
-    .order("category", { ascending: true })
+    .eq("is_active", true)
+    .order("category", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true });
 
   if (error) throw error;
 
-  return ((data || []).filter((item) => item.is_active !== false) ||
-    []) as TInventoryProduct[];
+  return (data || []) as TInventoryProduct[];
 };
 
 export const fetchInventoryBatches = async () => {
@@ -68,26 +76,40 @@ export const fetchInventoryBatches = async () => {
     .from("inventory_batches")
     .select("*")
     .gt("quantity_remaining", 0)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) throw error;
+
   return (data || []) as TInventoryBatch[];
 };
 
-export const getProductFifoPrice = async (productId: string) => {
-  const { data, error } = await supabase
+export const getProductLatestPrice = async (productId: string) => {
+  const { data: product, error: productError } = await supabase
+    .from("inventory_products")
+    .select("price")
+    .eq("id", productId)
+    .maybeSingle();
+
+  if (productError) throw productError;
+
+  if (toNumber(product?.price) > 0) {
+    return toNumber(product?.price);
+  }
+
+  const { data: batch, error: batchError } = await supabase
     .from("inventory_batches")
-    .select("*")
+    .select("price")
     .eq("product_id", productId)
-    .gt("quantity_remaining", 0)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (batchError) throw batchError;
 
-  return Number(data?.price || 0);
+  return toNumber(batch?.price);
 };
+
+export const getProductFifoPrice = getProductLatestPrice;
 
 export const createInventoryProduct = async (payload: {
   name: string;
@@ -95,19 +117,27 @@ export const createInventoryProduct = async (payload: {
   unit: string;
   price?: number;
 }) => {
+  const name = cleanText(payload.name);
+  const unit = cleanText(payload.unit);
+  const category = cleanText(payload.category) || null;
+
+  if (!name) throw new Error("Введите название товара");
+  if (!unit) throw new Error("Выберите единицу измерения");
+
   const { data, error } = await supabase
     .from("inventory_products")
     .insert({
-      name: payload.name.trim(),
-      category: payload.category || null,
-      unit: payload.unit,
-      price: payload.price || 0,
+      name,
+      category,
+      unit,
+      price: toNumber(payload.price),
       is_active: true,
     })
     .select()
     .single();
 
   if (error) throw error;
+
   return data as TInventoryProduct;
 };
 
@@ -121,14 +151,33 @@ export const updateInventoryProduct = async (
     is_active?: boolean;
   }
 ) => {
+  const updatePayload: Record<string, any> = {};
+
+  if (payload.name !== undefined) updatePayload.name = cleanText(payload.name);
+
+  if (payload.category !== undefined) {
+    updatePayload.category = cleanText(payload.category) || null;
+  }
+
+  if (payload.unit !== undefined) updatePayload.unit = cleanText(payload.unit);
+
+  if (payload.price !== undefined) {
+    updatePayload.price = toNumber(payload.price);
+  }
+
+  if (payload.is_active !== undefined) {
+    updatePayload.is_active = payload.is_active;
+  }
+
   const { data, error } = await supabase
     .from("inventory_products")
-    .update(payload)
+    .update(updatePayload)
     .eq("id", id)
     .select()
     .single();
 
   if (error) throw error;
+
   return data as TInventoryProduct;
 };
 
@@ -148,6 +197,7 @@ export const fetchInventoryOperations = async () => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
+
   return (data || []) as TInventoryOperation[];
 };
 
@@ -161,43 +211,61 @@ export const createInventoryOperations = async (
     type: TInventoryOperationType;
   }[]
 ) => {
+  const normalizedPayload = payload
+    .map((item) => ({
+      product_id: item.product_id || null,
+      name: cleanText(item.name),
+      unit: cleanText(item.unit),
+      quantity: toNumber(item.quantity),
+      price: item.type === "received" ? toNumber(item.price) : 0,
+      type: item.type,
+    }))
+    .filter((item) => item.name && item.unit && item.quantity > 0);
+
+  if (!normalizedPayload.length) {
+    throw new Error("Добавьте товар и укажите количество");
+  }
+
+  const invalidReceived = normalizedPayload.some(
+    (item) => item.type === "received" && item.price <= 0
+  );
+
+  if (invalidReceived) {
+    throw new Error("Укажите цену для прихода");
+  }
+
   const { data, error } = await supabase
     .from("inventory_operations")
-    .insert(payload)
+    .insert(normalizedPayload)
     .select();
 
   if (error) throw error;
 
-  const receivedItems = payload.filter(
-    (item) =>
-      item.type === "received" &&
-      item.product_id &&
-      Number(item.price || 0) > 0
+  const receivedItems = normalizedPayload.filter(
+    (item) => item.type === "received" && item.product_id && item.price > 0
   );
 
-  // ЭСКИ ЛОГИКА КАЛАТ
-  await Promise.all(
-    receivedItems.map((item) =>
-      supabase
-        .from("inventory_products")
-        .update({ price: item.price || 0 })
-        .eq("id", item.product_id)
-    )
-  );
+  for (const item of receivedItems) {
+    const { error: productError } = await supabase
+      .from("inventory_products")
+      .update({ price: item.price })
+      .eq("id", item.product_id);
 
-  // ЖАҢЫ FIFO ПАРТИЯ
-  await Promise.all(
-    receivedItems.map((item) =>
-      supabase.from("inventory_batches").insert({
+    if (productError) throw productError;
+
+    const { error: batchError } = await supabase
+      .from("inventory_batches")
+      .insert({
         product_id: item.product_id,
-        name: item.name.trim(),
+        name: item.name,
         unit: item.unit,
         quantity_received: item.quantity,
         quantity_remaining: item.quantity,
-        price: item.price || 0,
-      })
-    )
-  );
+        price: item.price,
+      });
+
+    if (batchError) throw batchError;
+  }
 
   return data as TInventoryOperation[];
 };
@@ -220,6 +288,7 @@ export const fetchInventoryBalances = async () => {
     .order("name", { ascending: true });
 
   if (error) throw error;
+
   return (data || []) as TInventoryBalance[];
 };
 
@@ -231,12 +300,24 @@ export const upsertInventoryBalances = async (
     confirmed_at: string;
   }[]
 ) => {
+  const normalizedPayload = payload
+    .map((item) => ({
+      name: cleanText(item.name),
+      unit: cleanText(item.unit),
+      quantity: toNumber(item.quantity),
+      confirmed_at: item.confirmed_at,
+    }))
+    .filter((item) => item.name && item.unit);
+
+  if (!normalizedPayload.length) return [];
+
   const { data, error } = await supabase
     .from("inventory_balances")
-    .upsert(payload, { onConflict: "name,unit" })
+    .upsert(normalizedPayload, { onConflict: "name,unit" })
     .select();
 
   if (error) throw error;
+
   return data as TInventoryBalance[];
 };
 
@@ -256,8 +337,8 @@ export const deleteInventoryBalanceByNameUnit = async (
   const { error } = await supabase
     .from("inventory_balances")
     .delete()
-    .eq("name", name)
-    .eq("unit", unit);
+    .eq("name", cleanText(name))
+    .eq("unit", cleanText(unit));
 
   if (error) throw error;
 };
@@ -269,6 +350,7 @@ export const fetchInventoryReports = async () => {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
+
   return (data || []) as TInventoryReport[];
 };
 
@@ -279,11 +361,16 @@ export const createInventoryReport = async (payload: {
 }) => {
   const { data, error } = await supabase
     .from("inventory_reports")
-    .insert(payload)
+    .insert({
+      title: cleanText(payload.title),
+      html: payload.html,
+      email_text: payload.email_text,
+    })
     .select()
     .single();
 
   if (error) throw error;
+
   return data as TInventoryReport;
 };
 

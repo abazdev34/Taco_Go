@@ -20,6 +20,7 @@ type Unit = "шт" | "кг" | "л";
 
 type Ingredient = {
   id: string;
+  category: string;
   productId: string;
   name: string;
   unit: Unit;
@@ -31,6 +32,7 @@ type Ingredient = {
 
 const makeIngredient = (): Ingredient => ({
   id: crypto.randomUUID(),
+  category: "",
   productId: "",
   name: "",
   unit: "кг",
@@ -64,22 +66,15 @@ const isIngredientUsedInCards = (ingredient: any, cards: any[]) => {
 function TechCardsPage() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
-  const [inventoryProducts, setInventoryProducts] = useState<
-    TInventoryProduct[]
-  >([]);
-  const [inventoryBatches, setInventoryBatches] = useState<TInventoryBatch[]>(
-    []
-  );
+  const [inventoryProducts, setInventoryProducts] = useState<TInventoryProduct[]>([]);
+  const [inventoryBatches, setInventoryBatches] = useState<TInventoryBatch[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<any | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
 
-  const [ingredients, setIngredients] = useState<Ingredient[]>([
-    makeIngredient(),
-  ]);
-
+  const [ingredients, setIngredients] = useState<Ingredient[]>([makeIngredient()]);
   const [showPercentInput, setShowPercentInput] = useState(false);
   const [percent, setPercent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -102,20 +97,57 @@ function TechCardsPage() {
     void load();
   }, []);
 
-  const getFifoPrice = (productId: string) => {
-    const batch = inventoryBatches.find(
-      (item) =>
-        String(item.product_id) === String(productId) &&
-        toNumber(item.quantity_remaining) > 0
+  const inventoryCategories = useMemo(() => {
+    return Array.from(
+      new Set(
+        inventoryProducts
+          .map((product) => product.category)
+          .filter(Boolean)
+          .map(String)
+      )
+    ).sort((a, b) => a.localeCompare(b, "ru"));
+  }, [inventoryProducts]);
+
+  const getProductsByCategory = (category: string) => {
+    return inventoryProducts.filter(
+      (product) => String(product.category || "") === String(category || "")
     );
+  };
 
-    if (batch) return toNumber(batch.price);
-
+  const getLatestPrice = (productId: string) => {
     const product = inventoryProducts.find(
       (item) => String(item.id) === String(productId)
     );
 
-    return toNumber(product?.price);
+    if (product) return toNumber(product.price);
+
+    const latestBatch = inventoryBatches
+      .filter((item) => String(item.product_id) === String(productId))
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
+
+    return toNumber(latestBatch?.price);
+  };
+
+  const getLiveIngredientPrice = (item: any) => {
+    if (item.product_id) return getLatestPrice(item.product_id);
+    if (item.productId) return getLatestPrice(item.productId);
+    return toNumber(item.unit_price || item.unitPrice);
+  };
+
+  const getLiveIngredientCost = (item: any) => {
+    const quantity = toNumber(item.quantity);
+    const price = getLiveIngredientPrice(item);
+    return +(quantity * price).toFixed(2);
+  };
+
+  const getLiveCardTotalCost = (card: any) => {
+    return (card.ingredients || []).reduce(
+      (sum: number, item: any) => sum + getLiveIngredientCost(item),
+      0
+    );
   };
 
   const cleanupUnusedIngredients = async (
@@ -155,13 +187,8 @@ function TechCardsPage() {
   const totalWeight = useMemo(() => {
     return ingredients.reduce((sum, item) => {
       const quantity = toNumber(item.quantity);
-
       if (item.unit === "кг") return sum + quantity;
-
-      if (item.unit === "шт") {
-        return sum + quantity * toNumber(item.pieceWeight);
-      }
-
+      if (item.unit === "шт") return sum + quantity * toNumber(item.pieceWeight);
       return sum;
     }, 0);
   }, [ingredients]);
@@ -191,11 +218,9 @@ function TechCardsPage() {
 
   const getWeightText = () => {
     const parts: string[] = [];
-
     if (totalWeight > 0) parts.push(`${totalWeight.toFixed(3)} кг`);
     if (totalLiters > 0) parts.push(`${totalLiters.toFixed(3)} л`);
     if (totalPieces > 0) parts.push(`${totalPieces} шт`);
-
     return parts.length ? parts.join(" + ") : "0";
   };
 
@@ -226,15 +251,18 @@ function TechCardsPage() {
     setIngredients(
       (card.ingredients || []).length
         ? (card.ingredients || []).map((item: any) => {
-            const fifoPrice = item.product_id
-              ? getFifoPrice(item.product_id)
-              : toNumber(item.unit_price);
+            const product = inventoryProducts.find(
+              (product) => String(product.id) === String(item.product_id)
+            );
 
             const quantity = toNumber(item.quantity);
-            const unitPrice = fifoPrice || toNumber(item.unit_price);
+            const unitPrice = item.product_id
+              ? getLatestPrice(item.product_id)
+              : toNumber(item.unit_price);
 
             return {
               id: crypto.randomUUID(),
+              category: product?.category || "",
               productId: item.product_id || "",
               name: item.name || "",
               unit: item.unit || "кг",
@@ -289,6 +317,25 @@ function TechCardsPage() {
     });
   };
 
+  const selectIngredientCategory = (ingredientId: string, category: string) => {
+    setIngredients((prev) =>
+      prev.map((item) => {
+        if (item.id !== ingredientId) return item;
+
+        return {
+          ...item,
+          category,
+          productId: "",
+          name: "",
+          unit: "кг",
+          unitPrice: "",
+          pieceWeight: "",
+          cost: 0,
+        };
+      })
+    );
+  };
+
   const selectInventoryProduct = (ingredientId: string, productId: string) => {
     const product = inventoryProducts.find((item) => item.id === productId);
 
@@ -309,10 +356,11 @@ function TechCardsPage() {
         }
 
         const quantity = toNumber(item.quantity);
-        const unitPrice = getFifoPrice(product.id);
+        const unitPrice = getLatestPrice(product.id);
 
         return {
           ...item,
+          category: product.category || "",
           productId: product.id,
           name: product.name,
           unit: product.unit as Unit,
@@ -352,29 +400,6 @@ function TechCardsPage() {
     );
   };
 
-  const refreshPricesFromProducts = () => {
-    setIngredients((prev) =>
-      prev.map((item) => {
-        const product = inventoryProducts.find(
-          (product) => product.id === item.productId
-        );
-
-        if (!product) return item;
-
-        const unitPrice = getFifoPrice(product.id);
-        const quantity = toNumber(item.quantity);
-
-        return {
-          ...item,
-          name: product.name,
-          unit: product.unit as Unit,
-          unitPrice: String(unitPrice),
-          cost: +(quantity * unitPrice).toFixed(2),
-        };
-      })
-    );
-  };
-
   const getIngredientsWithFreshPrices = () => {
     return ingredients.map((item) => {
       const product = inventoryProducts.find(
@@ -383,11 +408,12 @@ function TechCardsPage() {
 
       if (!product) return item;
 
-      const unitPrice = getFifoPrice(product.id);
+      const unitPrice = getLatestPrice(product.id);
       const quantity = toNumber(item.quantity);
 
       return {
         ...item,
+        category: product.category || "",
         name: product.name,
         unit: product.unit as Unit,
         unitPrice: String(unitPrice),
@@ -438,6 +464,23 @@ function TechCardsPage() {
     const freshSellingPrice = (freshTotalCost * 100) / percentNumber;
     const freshProfit = freshSellingPrice - freshTotalCost;
 
+    const freshTotalWeight = validIngredients.reduce((sum, item) => {
+      const quantity = toNumber(item.quantity);
+      if (item.unit === "кг") return sum + quantity;
+      if (item.unit === "шт") return sum + quantity * toNumber(item.pieceWeight);
+      return sum;
+    }, 0);
+
+    const freshTotalLiters = validIngredients.reduce((sum, item) => {
+      if (item.unit !== "л") return sum;
+      return sum + toNumber(item.quantity);
+    }, 0);
+
+    const freshTotalPieces = validIngredients.reduce((sum, item) => {
+      if (item.unit !== "шт") return sum;
+      return sum + toNumber(item.quantity);
+    }, 0);
+
     try {
       setLoading(true);
 
@@ -471,9 +514,9 @@ function TechCardsPage() {
         total_percent: percentNumber,
         total_selling_price: +freshSellingPrice.toFixed(2),
         total_profit: +freshProfit.toFixed(2),
-        total_weight: +totalWeight.toFixed(3),
-        total_liters: +totalLiters.toFixed(3),
-        total_pieces: totalPieces,
+        total_weight: +freshTotalWeight.toFixed(3),
+        total_liters: +freshTotalLiters.toFixed(3),
+        total_pieces: freshTotalPieces,
         ingredients: payloadIngredients,
       };
 
@@ -495,7 +538,6 @@ function TechCardsPage() {
       }
 
       await load();
-
       setOpenedCardId(null);
       closeModal();
     } catch (error: any) {
@@ -539,14 +581,20 @@ function TechCardsPage() {
     ? menuItems.find((item) => item.id === openedCard.menu_item_id)
     : null;
 
+  const openedCardLiveTotalCost = openedCard ? getLiveCardTotalCost(openedCard) : 0;
+  const openedCardPercent = Number(openedCard?.total_percent || 0);
+  const openedCardSellingPrice =
+    openedCardPercent > 0 ? (openedCardLiveTotalCost * 100) / openedCardPercent : 0;
+  const openedCardProfit = openedCardSellingPrice - openedCardLiveTotalCost;
+
   return (
     <div className="tech-page">
       <div className="tech-header">
         <div>
           <h1>Техкарты</h1>
           <p>
-            Выберите блюдо. Если техкарта готова, нажмите на блюдо, чтобы
-            открыть или скрыть таблицу.
+            Выберите блюдо. Если техкарта готова, нажмите на блюдо, чтобы открыть
+            или скрыть таблицу.
           </p>
         </div>
       </div>
@@ -558,6 +606,7 @@ function TechCardsPage() {
           {menuItems.map((food) => {
             const card = cards.find((item) => item.menu_item_id === food.id);
             const isOpen = openedCardId === card?.id;
+            const liveCost = card ? getLiveCardTotalCost(card) : 0;
 
             return (
               <button
@@ -570,7 +619,7 @@ function TechCardsPage() {
 
                 {card && (
                   <small className="tech-food-cost">
-                    Өздук баа: {formatPrice(Number(card.total_cost || 0))}
+                    Себестоимость: {formatPrice(liveCost)}
                   </small>
                 )}
 
@@ -603,7 +652,7 @@ function TechCardsPage() {
           <div className="tech-summary-grid">
             <div>
               <span>Себестоимость</span>
-              <strong>{formatPrice(Number(openedCard.total_cost || 0))}</strong>
+              <strong>{formatPrice(openedCardLiveTotalCost)}</strong>
             </div>
 
             <div>
@@ -613,21 +662,17 @@ function TechCardsPage() {
 
             <div>
               <span>Процент</span>
-              <strong>{Number(openedCard.total_percent || 0)}%</strong>
+              <strong>{openedCardPercent}%</strong>
             </div>
 
             <div>
               <span>Продажная цена</span>
-              <strong>
-                {formatPrice(Number(openedCard.total_selling_price || 0))}
-              </strong>
+              <strong>{formatPrice(openedCardSellingPrice)}</strong>
             </div>
 
             <div>
               <span>Прибыль</span>
-              <strong className="profit">
-                {formatPrice(Number(openedCard.total_profit || 0))}
-              </strong>
+              <strong className="profit">{formatPrice(openedCardProfit)}</strong>
             </div>
           </div>
 
@@ -644,8 +689,11 @@ function TechCardsPage() {
               </thead>
 
               <tbody>
-                {(openedCard.ingredients || []).map(
-                  (item: any, index: number) => (
+                {(openedCard.ingredients || []).map((item: any, index: number) => {
+                  const livePrice = getLiveIngredientPrice(item);
+                  const liveCost = getLiveIngredientCost(item);
+
+                  return (
                     <tr key={`${openedCard.id}-${index}`}>
                       <td>
                         <strong>{item.name}</strong>
@@ -670,23 +718,20 @@ function TechCardsPage() {
                           : "—"}
                       </td>
 
-                      <td>{formatPrice(Number(item.unit_price || 0))}</td>
+                      <td>{formatPrice(livePrice)}</td>
 
                       <td>
-                        <strong>{formatPrice(Number(item.cost || 0))}</strong>
+                        <strong>{formatPrice(liveCost)}</strong>
                       </td>
                     </tr>
-                  )
-                )}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="tech-table-actions tech-bottom-actions">
-            <button
-              type="button"
-              onClick={() => openEditModal(openedFood, openedCard)}
-            >
+            <button type="button" onClick={() => openEditModal(openedFood, openedCard)}>
               Изменить
             </button>
 
@@ -729,18 +774,38 @@ function TechCardsPage() {
                   <div className="tech-index">{index + 1}</div>
 
                   <label>
+                    <span>Категория</span>
+                    <select
+                      value={item.category}
+                      onChange={(e) =>
+                        selectIngredientCategory(item.id, e.target.value)
+                      }
+                    >
+                      <option value="">Выберите категорию</option>
+
+                      {inventoryCategories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
                     <span>Ингредиент</span>
                     <select
                       value={item.productId}
+                      disabled={!item.category}
                       onChange={(e) =>
                         selectInventoryProduct(item.id, e.target.value)
                       }
                     >
                       <option value="">Выберите товар</option>
 
-                      {inventoryProducts.map((product) => (
+                      {getProductsByCategory(item.category).map((product) => (
                         <option key={product.id} value={product.id}>
-                          {product.name} — {product.unit}
+                          {product.name} — {product.unit} —{" "}
+                          {formatPrice(Number(product.price || 0))}
                         </option>
                       ))}
                     </select>
@@ -777,11 +842,7 @@ function TechCardsPage() {
                         placeholder="Например: 0.085"
                         value={item.pieceWeight}
                         onChange={(e) =>
-                          updateIngredient(
-                            item.id,
-                            "pieceWeight",
-                            e.target.value
-                          )
+                          updateIngredient(item.id, "pieceWeight", e.target.value)
                         }
                       />
                     </label>
@@ -812,11 +873,7 @@ function TechCardsPage() {
                 </div>
               ))}
 
-              <button
-                type="button"
-                className="tech-add-ing"
-                onClick={addIngredient}
-              >
+              <button type="button" className="tech-add-ing" onClick={addIngredient}>
                 + Добавить ингредиент
               </button>
             </div>
@@ -916,11 +973,7 @@ function TechCardsPage() {
                     <strong>{formatPrice(profit)}</strong>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleConfirm}
-                    disabled={loading}
-                  >
+                  <button type="button" onClick={handleConfirm} disabled={loading}>
                     {loading ? "Сохраняется..." : "Подтвердить"}
                   </button>
                 </>

@@ -36,7 +36,7 @@ function InventoryArchivePanel({ reports, onChanged }: Props) {
   };
 
   const removeReport = async (report: TInventoryReport) => {
-    const ok = confirm(`Удалить архив "${report.title}"?`);
+    const ok = confirm(`Удалить архив «${report.title}»?`);
     if (!ok) return;
 
     try {
@@ -65,12 +65,12 @@ function InventoryArchivePanel({ reports, onChanged }: Props) {
       </div>
 
       {reports.length === 0 ? (
-        <div className="inventory-empty">Архив пуст</div>
+        <div className="inventory-empty">Архив пока пуст</div>
       ) : (
         <div className="inventory-archive-list">
           {reports.map((report) => (
             <div key={report.id} className="inventory-archive-card">
-              <div>
+              <div className="inventory-archive-info">
                 <strong>{report.title}</strong>
                 <span>
                   {new Date(report.created_at).toLocaleString("ru-RU")}

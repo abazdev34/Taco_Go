@@ -33,6 +33,35 @@ const TECH_CARD_SELECT = `
   )
 `;
 
+const toNumber = (value: unknown) => {
+  const normalized = String(value ?? "").replace(",", ".").trim();
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const cleanText = (value: unknown) => String(value ?? "").trim();
+
+const normalizeIngredients = (
+  techCardId: string,
+  ingredients: ICreateTechCardPayload["ingredients"]
+) => {
+  return ingredients
+    .map((item) => ({
+      tech_card_id: techCardId,
+      product_id: item.product_id || null,
+      name: cleanText(item.name),
+      unit: cleanText(item.unit) || "кг",
+      quantity: toNumber(item.quantity),
+      unit_price: toNumber(item.unit_price),
+      piece_weight: toNumber(item.piece_weight),
+      percent: toNumber(item.percent),
+      cost: toNumber(item.cost),
+      selling_price: toNumber(item.selling_price),
+      profit: toNumber(item.profit),
+    }))
+    .filter((item) => item.name && item.quantity > 0);
+};
+
 export async function fetchTechCards(): Promise<ITechCardRow[]> {
   const { data, error } = await supabase
     .from("tech_cards")
@@ -40,53 +69,48 @@ export async function fetchTechCards(): Promise<ITechCardRow[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
+
   return (data || []) as ITechCardRow[];
 }
 
 export async function createTechCard(payload: ICreateTechCardPayload) {
+  const { data: oldCard, error: oldCardError } = await supabase
+    .from("tech_cards")
+    .select("id")
+    .eq("menu_item_id", payload.menu_item_id)
+    .maybeSingle();
+
+  if (oldCardError) throw new Error(oldCardError.message);
+
+  if (oldCard?.id) {
+    return updateTechCard(oldCard.id, payload);
+  }
+
   const { data: card, error } = await supabase
     .from("tech_cards")
-    .insert([
-      {
-        menu_item_id: payload.menu_item_id,
-        total_cost: payload.total_cost,
-        total_percent: payload.total_percent,
-        total_selling_price: payload.total_selling_price,
-        total_profit: payload.total_profit,
-        total_weight: payload.total_weight || 0,
-        total_liters: payload.total_liters || 0,
-        total_pieces: payload.total_pieces || 0,
-      },
-    ])
+    .insert({
+      menu_item_id: payload.menu_item_id,
+      total_cost: toNumber(payload.total_cost),
+      total_percent: toNumber(payload.total_percent),
+      total_selling_price: toNumber(payload.total_selling_price),
+      total_profit: toNumber(payload.total_profit),
+      total_weight: toNumber(payload.total_weight),
+      total_liters: toNumber(payload.total_liters),
+      total_pieces: toNumber(payload.total_pieces),
+    })
     .select("id")
     .single();
 
-  if (error) {
-    console.error("CREATE TECH CARD ERROR:", error);
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
-  const ingredients = payload.ingredients.map((item) => ({
-    tech_card_id: card.id,
-    product_id: item.product_id || null,
-    name: item.name,
-    unit: item.unit,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    piece_weight: item.piece_weight || 0,
-    percent: item.percent || 0,
-    cost: item.cost,
-    selling_price: item.selling_price || 0,
-    profit: item.profit || 0,
-  }));
+  const ingredients = normalizeIngredients(card.id, payload.ingredients);
 
-  const { error: ingredientError } = await supabase
-    .from("tech_card_ingredients")
-    .insert(ingredients);
+  if (ingredients.length > 0) {
+    const { error: ingredientError } = await supabase
+      .from("tech_card_ingredients")
+      .insert(ingredients);
 
-  if (ingredientError) {
-    console.error("CREATE INGREDIENTS ERROR:", ingredientError);
-    throw new Error(ingredientError.message);
+    if (ingredientError) throw new Error(ingredientError.message);
   }
 
   return true;
@@ -100,60 +124,49 @@ export async function updateTechCard(
     .from("tech_cards")
     .update({
       menu_item_id: payload.menu_item_id,
-      total_cost: payload.total_cost,
-      total_percent: payload.total_percent,
-      total_selling_price: payload.total_selling_price,
-      total_profit: payload.total_profit,
-      total_weight: payload.total_weight || 0,
-      total_liters: payload.total_liters || 0,
-      total_pieces: payload.total_pieces || 0,
+      total_cost: toNumber(payload.total_cost),
+      total_percent: toNumber(payload.total_percent),
+      total_selling_price: toNumber(payload.total_selling_price),
+      total_profit: toNumber(payload.total_profit),
+      total_weight: toNumber(payload.total_weight),
+      total_liters: toNumber(payload.total_liters),
+      total_pieces: toNumber(payload.total_pieces),
     })
     .eq("id", id);
 
-  if (error) {
-    console.error("UPDATE TECH CARD ERROR:", error);
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   const { error: deleteError } = await supabase
     .from("tech_card_ingredients")
     .delete()
     .eq("tech_card_id", id);
 
-  if (deleteError) {
-    console.error("DELETE OLD INGREDIENTS ERROR:", deleteError);
-    throw new Error(deleteError.message);
-  }
+  if (deleteError) throw new Error(deleteError.message);
 
-  const ingredients = payload.ingredients.map((item) => ({
-    tech_card_id: id,
-    product_id: item.product_id || null,
-    name: item.name,
-    unit: item.unit,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    piece_weight: item.piece_weight || 0,
-    percent: item.percent || 0,
-    cost: item.cost,
-    selling_price: item.selling_price || 0,
-    profit: item.profit || 0,
-  }));
+  const ingredients = normalizeIngredients(id, payload.ingredients);
 
-  const { error: insertError } = await supabase
-    .from("tech_card_ingredients")
-    .insert(ingredients);
+  if (ingredients.length > 0) {
+    const { error: insertError } = await supabase
+      .from("tech_card_ingredients")
+      .insert(ingredients);
 
-  if (insertError) {
-    console.error("INSERT NEW INGREDIENTS ERROR:", insertError);
-    throw new Error(insertError.message);
+    if (insertError) throw new Error(insertError.message);
   }
 
   return true;
 }
 
 export async function deleteTechCard(id: string) {
+  const { error: ingredientsError } = await supabase
+    .from("tech_card_ingredients")
+    .delete()
+    .eq("tech_card_id", id);
+
+  if (ingredientsError) throw new Error(ingredientsError.message);
+
   const { error } = await supabase.from("tech_cards").delete().eq("id", id);
 
   if (error) throw new Error(error.message);
+
   return true;
 }

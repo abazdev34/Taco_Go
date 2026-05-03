@@ -403,35 +403,56 @@ function TechInventoryPage() {
   }, [orders]);
 
   if (loading) {
-    return <div className="inventory-page">Загрузка склада...</div>;
+    return (
+      <div className="inventory-page">
+        <div className="inventory-loading">Загрузка склада...</div>
+      </div>
+    );
   }
 
   return (
     <div className="inventory-page">
-      <div className="inventory-header">
+      <div className="inventory-hero">
         <button
           type="button"
           className="inventory-exit-btn"
           onClick={() => navigate("/admin")}
         >
-          Выйти
+          ← Назад в админ-панель
         </button>
 
-        <InventoryTopBar
-          view={view}
-          saving={saving}
-          onView={setView}
-          onRefresh={load}
-        />
+        <div>
+          <h1>Склад</h1>
+          <p>Учёт остатков, поставок, списаний и сверок склада.</p>
+        </div>
       </div>
 
+      <InventoryTopBar
+        view={view}
+        saving={saving}
+        onView={setView}
+        onRefresh={load}
+      />
+
       <div className="inventory-info">
-        Товаров в базе: <strong>{products.length}</strong> • Товаров в складе:{" "}
-        <strong>{stateRows.length}</strong> • Готовых заказов:{" "}
-        <strong>{readyOrdersCount}</strong> • Всего заказов:{" "}
-        <strong>{orders.length}</strong> • Операций:{" "}
-        <strong>{operations.length}</strong> • Архивов:{" "}
-        <strong>{reports.length}</strong>
+        <span>
+          Товаров в базе: <strong>{products.length}</strong>
+        </span>
+        <span>
+          Товаров в складе: <strong>{stateRows.length}</strong>
+        </span>
+        <span>
+          Готовых заказов: <strong>{readyOrdersCount}</strong>
+        </span>
+        <span>
+          Всего заказов: <strong>{orders.length}</strong>
+        </span>
+        <span>
+          Операций: <strong>{operations.length}</strong>
+        </span>
+        <span>
+          Архивов: <strong>{reports.length}</strong>
+        </span>
       </div>
 
       {view === "products" && (
@@ -449,7 +470,7 @@ function TechInventoryPage() {
 
       {view === "today" && (
         <InventoryUsageTable
-          title="Сегодня списано по готовым заказам"
+          title="Списано сегодня по готовым заказам"
           rows={todayRows}
           formatQty={formatQty}
         />
@@ -457,7 +478,7 @@ function TechInventoryPage() {
 
       {view === "yesterday" && (
         <InventoryUsageTable
-          title="Вчера списано по готовым заказам"
+          title="Списано вчера по готовым заказам"
           rows={yesterdayRows}
           formatQty={formatQty}
         />
@@ -465,7 +486,7 @@ function TechInventoryPage() {
 
       {view === "all" && (
         <InventoryUsageTable
-          title="Всё списано по готовым заказам"
+          title="Все списания по готовым заказам"
           rows={allRows}
           formatQty={formatQty}
         />
@@ -501,7 +522,9 @@ function TechInventoryPage() {
         />
       )}
 
-      {view === "archive" && <InventoryArchivePanel reports={reports} />}
+      {view === "archive" && (
+        <InventoryArchivePanel reports={reports} onChanged={load} />
+      )}
     </div>
   );
 }
