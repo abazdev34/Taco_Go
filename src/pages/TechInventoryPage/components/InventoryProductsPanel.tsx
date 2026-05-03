@@ -31,6 +31,9 @@ function InventoryProductsPanel({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [categoryNameDraft, setCategoryNameDraft] = useState("");
+
   const [form, setForm] = useState({
     name: "",
     category: "Продукты",
@@ -38,32 +41,38 @@ function InventoryProductsPanel({
     price: "",
   });
 
+  const activeProducts = useMemo(
+    () => products.filter((item) => item.is_active !== false),
+    [products]
+  );
+
   const categories = useMemo(() => {
     return Array.from(
-      new Set(products.map((item) => item.category).filter(Boolean))
+      new Set(activeProducts.map((item) => item.category || "Без категории"))
     ).sort((a, b) => String(a).localeCompare(String(b), "ru"));
-  }, [products]);
+  }, [activeProducts]);
 
   const filteredProducts = useMemo(() => {
     const text = search.trim().toLowerCase();
 
-    return products
-      .filter((item) => item.is_active !== false)
+    return activeProducts
       .filter((item) => {
+        const productCategory = item.category || "Без категории";
+
         const bySearch =
           !text ||
           item.name.toLowerCase().includes(text) ||
-          String(item.category || "").toLowerCase().includes(text) ||
+          String(productCategory).toLowerCase().includes(text) ||
           item.unit.toLowerCase().includes(text);
 
         const byCategory =
-          !categoryFilter || item.category === categoryFilter;
+          !categoryFilter || productCategory === categoryFilter;
 
         return bySearch && byCategory;
       })
       .sort((a, b) => {
-        const cat = String(a.category || "").localeCompare(
-          String(b.category || ""),
+        const cat = String(a.category || "Без категории").localeCompare(
+          String(b.category || "Без категории"),
           "ru"
         );
 
@@ -71,7 +80,22 @@ function InventoryProductsPanel({
 
         return a.name.localeCompare(b.name, "ru");
       });
-  }, [products, search, categoryFilter]);
+  }, [activeProducts, search, categoryFilter]);
+
+  const groupedProducts = useMemo(() => {
+    const map = new Map<string, TInventoryProduct[]>();
+
+    filteredProducts.forEach((product) => {
+      const category = product.category || "Без категории";
+      const list = map.get(category) || [];
+      list.push(product);
+      map.set(category, list);
+    });
+
+    return Array.from(map.entries()).sort(([a], [b]) =>
+      a.localeCompare(b, "ru")
+    );
+  }, [filteredProducts]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -157,15 +181,149 @@ function InventoryProductsPanel({
     }
   };
 
+  const startEditCategory = (category: string) => {
+    setEditingCategory(category);
+    setCategoryNameDraft(category === "Без категории" ? "" : category);
+  };
+
+  const cancelEditCategory = () => {
+    setEditingCategory(null);
+    setCategoryNameDraft("");
+  };
+
+  const saveCategoryName = async (oldCategory: string) => {
+    const nextCategory = categoryNameDraft.trim();
+
+    if (!nextCategory) {
+      alert("Введите название категории");
+      return;
+    }
+
+    const categoryProducts = activeProducts.filter(
+      (product) => (product.category || "Без категории") === oldCategory
+    );
+
+    if (!categoryProducts.length) return;
+
+    try {
+      setSaving(true);
+
+      await Promise.all(
+        categoryProducts.map((product) =>
+          updateInventoryProduct(product.id, {
+            name: product.name,
+            category: nextCategory,
+            unit: product.unit,
+            price: Number(product.price || 0),
+          })
+        )
+      );
+
+      if (categoryFilter === oldCategory) {
+        setCategoryFilter(nextCategory);
+      }
+
+      cancelEditCategory();
+      await onSaved();
+      alert("Категория изменена");
+    } catch (error: any) {
+      alert(error?.message || "Не удалось изменить категорию");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeCategory = async (category: string) => {
+    const categoryProducts = activeProducts.filter(
+      (product) => (product.category || "Без категории") === category
+    );
+
+    if (!categoryProducts.length) return;
+
+    if (
+      !confirm(
+        `Удалить категорию "${category}" и все товары внутри? Количество: ${categoryProducts.length}`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await Promise.all(
+        categoryProducts.map((product) => deleteInventoryProduct(product.id))
+      );
+
+      if (categoryFilter === category) {
+        setCategoryFilter("");
+      }
+
+      if (editingCategory === category) {
+        cancelEditCategory();
+      }
+
+      await onSaved();
+      alert("Категория удалена");
+    } catch (error: any) {
+      alert(error?.message || "Не удалось удалить категорию");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeAllProducts = async () => {
+    if (!activeProducts.length) return;
+
+    if (
+      !confirm(
+        `Удалить ВСЕ товары? Количество: ${activeProducts.length}. Это действие нельзя отменить.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await Promise.all(
+        activeProducts.map((product) => deleteInventoryProduct(product.id))
+      );
+
+      resetForm();
+      cancelEditCategory();
+      setSearch("");
+      setCategoryFilter("");
+
+      await onSaved();
+      alert("Все товары удалены");
+    } catch (error: any) {
+      alert(error?.message || "Не удалось удалить все товары");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="products-card">
       <div className="products-head">
         <div>
           <h2>Товары</h2>
-          <p>Добавляйте, изменяйте и удаляйте товары склада.</p>
+          <p>Категорияларга бөлүп, өзгөртүп жана өчүрө аласыз.</p>
         </div>
 
-        <strong>Всего: {filteredProducts.length}</strong>
+        <div className="products-row-actions">
+          <strong>Всего: {filteredProducts.length}</strong>
+
+          <button
+            type="button"
+            className="danger"
+            disabled={saving || !activeProducts.length}
+            onClick={removeAllProducts}
+          >
+            Удалить все
+          </button>
+        </div>
       </div>
 
       <div className="products-form">
@@ -262,61 +420,128 @@ function InventoryProductsPanel({
         </select>
       </div>
 
-      <div className="products-table-wrap">
-        <table className="products-table">
-          <thead>
-            <tr>
-              <th>Категория</th>
-              <th>Товар</th>
-              <th>Ед.</th>
-              <th>Цена</th>
-              <th></th>
-            </tr>
-          </thead>
+      <div className="products-category-list">
+        {groupedProducts.map(([category, categoryProducts]) => (
+          <section className="products-category-card" key={category}>
+            <div className="products-category-head">
+              {editingCategory === category ? (
+                <div className="products-category-edit">
+                  <input
+                    value={categoryNameDraft}
+                    disabled={saving}
+                    placeholder="Название категории"
+                    onChange={(e) => setCategoryNameDraft(e.target.value)}
+                  />
 
-          <tbody>
-            {filteredProducts.map((product) => (
-              <tr key={product.id}>
-                <td>{product.category || "—"}</td>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => saveCategoryName(category)}
+                  >
+                    Сохранить
+                  </button>
 
-                <td>
-                  <strong>{product.name}</strong>
-                </td>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={saving}
+                    onClick={cancelEditCategory}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <h3>{category}</h3>
+                    <p>Товаров: {categoryProducts.length}</p>
+                  </div>
 
-                <td>{product.unit}</td>
-
-                <td>{Number(product.price || 0).toLocaleString("ru-RU")}</td>
-
-                <td>
                   <div className="products-row-actions">
                     <button
                       type="button"
                       disabled={saving}
-                      onClick={() => editProduct(product)}
+                      onClick={() => startEditCategory(category)}
                     >
-                      Изм.
+                      Изм. категорию
                     </button>
 
                     <button
                       type="button"
                       className="danger"
                       disabled={saving}
-                      onClick={() => removeProduct(product)}
+                      onClick={() => removeCategory(category)}
                     >
-                      Удал.
+                      Удал. категорию
                     </button>
                   </div>
-                </td>
-              </tr>
-            ))}
+                </>
+              )}
+            </div>
 
-            {!filteredProducts.length && (
-              <tr>
-                <td colSpan={5}>Товары не найдены</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            <div className="products-table-wrap">
+              <table className="products-table">
+                <thead>
+                  <tr>
+                    <th>Товар</th>
+                    <th>Ед.</th>
+                    <th>Цена</th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {categoryProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td>
+                        <strong>{product.name}</strong>
+                      </td>
+
+                      <td>{product.unit}</td>
+
+                      <td>
+                        {Number(product.price || 0).toLocaleString("ru-RU")}
+                      </td>
+
+                      <td>
+                        <div className="products-row-actions">
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => editProduct(product)}
+                          >
+                            Изм.
+                          </button>
+
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={saving}
+                            onClick={() => removeProduct(product)}
+                          >
+                            Удал.
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ))}
+
+        {!filteredProducts.length && (
+          <div className="products-table-wrap">
+            <table className="products-table">
+              <tbody>
+                <tr>
+                  <td>Товары не найдены</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

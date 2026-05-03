@@ -10,10 +10,20 @@ export type TOrderStatus =
   | 'preparing'
   | 'ready'
   | 'completed'
+  | 'cancelled'
 
-export type TKitchenStatus = 'new' | 'skipped'
+export type TKitchenStatus =
+  | 'new'
+  | 'preparing'
+  | 'ready'
+  | 'skipped'
 
-export type TAssemblyStatus = 'waiting' | 'new' | 'skipped'
+export type TAssemblyStatus =
+  | 'waiting'
+  | 'new'
+  | 'preparing'
+  | 'ready'
+  | 'skipped'
 
 export type TCashierStatus = string | null
 
@@ -33,7 +43,12 @@ export interface IMenuItem {
   price: number
   category?: string | null
   categories?: TMenuCategory | null
+
   quantity?: number
+  order_quantity?: number
+  qty?: number
+  cart_quantity?: number
+
   description?: string | null
   image?: string | null
   image_url?: string | null
@@ -55,7 +70,7 @@ export interface ICreateOrderPayload {
   payment_method?: TPaymentMethod | null
   kitchen_status?: TKitchenStatus | string | null
   assembly_status?: TAssemblyStatus | string | null
-  assembly_progress?: any[]
+  assembly_progress?: string[]
   paid_amount?: number | null
   change_amount?: number | null
   cashier_status?: TCashierStatus
@@ -67,7 +82,7 @@ export interface IUpdateOrderPayload {
   status?: TOrderStatus
   kitchen_status?: TKitchenStatus | string | null
   assembly_status?: TAssemblyStatus | string | null
-  assembly_progress?: any[]
+  assembly_progress?: string[]
   payment_method?: TPaymentMethod | null
   paid_amount?: number | null
   change_amount?: number | null
